@@ -75,6 +75,7 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
         st, _, html_bytes = _http_get(f"{base}/")
         assert st == 200
         html = html_bytes.decode("utf-8")
+        assert '<html lang="en">' in html
         m = re.search(r"const token = '([0-9a-f]{32})'", html)
         assert m is not None, "Missing 32-hex token in /"
         token = m.group(1)
@@ -92,6 +93,28 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
                 assert "css" in ctype
             elif rel.endswith(".js"):
                 assert "javascript" in ctype
+
+        # Bilingual i18n and Help modal JS modules load 200
+        for js_rel in ("/static/js/i18n.js", "/static/js/modals/helpModal.js"):
+            js_st, js_hdrs, js_body = _http_get(f"{base}{js_rel}")
+            assert js_st == 200, f"JS module {js_rel} failed with {js_st}"
+            assert len(js_body) > 0
+            assert "javascript" in (js_hdrs.get("Content-Type") or "").lower()
+
+        # All 7 annotated visual guide screenshots load 200 as image/png
+        for img_rel in (
+            "/static/img/guide-topbar.png",
+            "/static/img/guide-filters-row.png",
+            "/static/img/guide-provider-dd.png",
+            "/static/img/guide-drawer.png",
+            "/static/img/guide-lighten.png",
+            "/static/img/guide-cleanup.png",
+            "/static/img/guide-autosync.png",
+        ):
+            img_st, img_hdrs, img_body = _http_get(f"{base}{img_rel}")
+            assert img_st == 200, f"Guide image {img_rel} failed with {img_st}"
+            assert (img_hdrs.get("Content-Type") or "").lower().startswith("image/png")
+            assert len(img_body) > 100 and img_body.startswith(b"\x89PNG\r\n\x1a\n")
 
         # Path traversal protection on /static/
         trav_st, _, _ = _http_get(f"{base}/static/../../pyproject.toml")

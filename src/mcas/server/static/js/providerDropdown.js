@@ -3,6 +3,7 @@ import { el } from './utils/dom.js';
 import { providerLabel } from './utils/format.js';
 import { renderSessions } from './render/sessionList.js';
 import { applyGroupProviders } from './actions.js';
+import { t } from './i18n.js';
 
 export function closeProviderDropdown(shouldRender = true) {
   if (!state.openDropdownKey) return;
@@ -14,7 +15,7 @@ export function buildProviderTagButton(g, onToggle) {
   const btn = el('button', {
     type: 'button',
     className: 'prov-tag-btn',
-    title: 'Manage which providers hold this conversation',
+    title: t('dd.tagTitle'),
     'data-dropdown-host': 'true',
     onclick: (e) => {
       e.stopPropagation();
@@ -33,7 +34,7 @@ export function buildProviderDropdownMenu(g) {
     className: 'prov-dropdown-menu',
     onclick: (e) => e.stopPropagation(),
   });
-  menu.append(el('div', { className: 'prov-dd-title', textContent: 'Providers keeping this chat' }));
+  menu.append(el('div', { className: 'prov-dd-title', textContent: t('dd.title') }));
 
   const supportedIds = ['claude', 'agy'];
   const cbMap = {};
@@ -45,7 +46,7 @@ export function buildProviderDropdownMenu(g) {
     cbMap[pid] = cb;
     const badge = el('span', {
       className: 'prov-dd-badge',
-      textContent: present ? (g.members[pid].sizeHuman || 'synced') : 'not here',
+      textContent: present ? (g.members[pid].sizeHuman || t('dd.synced')) : t('dd.notHere'),
     });
     badgeMap[pid] = badge;
 
@@ -66,32 +67,32 @@ export function buildProviderDropdownMenu(g) {
         el('input', { type: 'checkbox', disabled: true }),
         el('span', { textContent: `${providerLabel(soonId)} (${soonId})` })
       ),
-      el('span', { className: 'prov-dd-badge', textContent: 'Soon' })
+      el('span', { className: 'prov-dd-badge', textContent: t('filter.soon') })
     ));
   }
 
   const thoughtCb = el('input', { type: 'checkbox' });
   const optsWrap = el('div', { className: 'prov-dd-opts', hidden: true },
-    el('label', { className: 'check' }, thoughtCb, el('span', { textContent: 'Include <thought> blocks when syncing' }))
+    el('label', { className: 'check' }, thoughtCb, el('span', { textContent: t('dd.includeThought') }))
   );
   menu.append(optsWrap);
 
   const warnBox = el('div', {
     className: 'prov-dd-warn',
     hidden: true,
-    textContent: 'All providers unchecked \u2014 clicking Apply will confirm permanently deleting this conversation.',
+    textContent: t('dd.warnDeleteAll'),
   });
   menu.append(warnBox);
 
   const untickBtn = el('button', {
     type: 'button',
     className: 'sm ghost',
-    textContent: 'Untick all',
+    textContent: t('dd.untickAll'),
   });
   const applyBtn = el('button', {
     type: 'button',
     className: 'sm primary',
-    textContent: 'Apply',
+    textContent: t('dd.apply'),
     disabled: true,
   });
   menu.append(el('div', { className: 'prov-dd-foot' }, untickBtn, applyBtn));
@@ -108,17 +109,17 @@ export function buildProviderDropdownMenu(g) {
         hasAdd = true;
         changed = true;
         b.className = 'prov-dd-badge add';
-        b.textContent = '+ Add';
+        b.textContent = t('dd.add');
       } else if (was && !now) {
         changed = true;
         b.className = 'prov-dd-badge remove';
-        b.textContent = '- Remove';
+        b.textContent = t('dd.remove');
       } else if (was && now) {
         b.className = 'prov-dd-badge';
-        b.textContent = g.members[pid].sizeHuman || 'present';
+        b.textContent = g.members[pid].sizeHuman || t('dd.present');
       } else {
         b.className = 'prov-dd-badge';
-        b.textContent = 'not here';
+        b.textContent = t('dd.notHere');
       }
     }
     optsWrap.hidden = !hasAdd;
@@ -126,10 +127,10 @@ export function buildProviderDropdownMenu(g) {
     applyBtn.disabled = !changed;
     if (desired.length === 0) {
       applyBtn.className = 'sm danger';
-      applyBtn.textContent = 'Apply (Delete)';
+      applyBtn.textContent = t('dd.applyDelete');
     } else {
       applyBtn.className = 'sm primary';
-      applyBtn.textContent = 'Apply';
+      applyBtn.textContent = t('dd.apply');
     }
   };
 

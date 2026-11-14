@@ -74,6 +74,7 @@ mcas ui stop           # stop the server and remove the tray icon
 The Web UI binds strictly to `127.0.0.1`, verifies `Host` headers, and authenticates all `/api/*` endpoints with a per-session `X-Mcas-Token`.
 
 **Web UI features:**
+- **Bilingual (`EN` / `VI`), Theme Toggle & Visual Help**: Top-right utility bar includes **`? Help`** (shortcut `?`) with an annotated visual guide & FAQ, an **`EN / VI`** flag dropdown for live English / Tiếng Việt switching (persisted in `localStorage`), and a top-right **Light / Dark** theme toggle. See also the illustrated Vietnamese walkthrough in [docs/ui-guide.md](docs/ui-guide.md).
 - **Conversations, Provider Sync & Cleanup**: Synced conversations across providers merge into a single row with a tag like `(claude, agy)`. Use the **Providers** checkbox dropdown on any row to add (`+ Add`), remove (`- Remove`), or untick all checkboxes & click **Apply** (with a delete confirmation dialog) to delete completely; sort by newest, largest size, or turn count; **Lighten** bulky conversations in-place (keep newest 50%/N turns, truncate tool outputs, purge heavy brain/subagent sidecars); bulk **Copy Selected** / **Delete Selected**; 1-click **Sync folder** modal; **Clean Up** storage modal (dry-run preview, orphans, empty/subagent/old/large sessions, SQLite `VACUUM`); and slide-over **Preview** drawer with provider tabs, size breakdown, collapsible `<thought>` blocks, tool calls/results, and copyable `Resume Dir` / `Resume Cmd`.
 - **Auto-Sync & Activity**: Enable/disable background bidirectional sync, configure direction, check interval (`10s`-`300s`), scope (`All workspaces` vs `Selected folders only`), `<thought>` folding, trigger **Sync Now**, and review recent sync activity with target resume commands.
 
@@ -162,7 +163,7 @@ src/mcas/
   services/                  # query.py, delete.py, trim.py, clean.py
   server/
     app.py, routes.py, static_files.py
-    static/                  # index.html, css/*, js/* (vanilla ES modules, zero build step)
+    static/                  # index.html, css/*, js/* (i18n/modals), img/guide-*.png
   cli/
     __init__.py, parser.py
     commands/                # sessions.py, maintenance.py, app_cmds.py
@@ -170,6 +171,8 @@ src/mcas/
     autostart.py             # Windows Startup shortcut (test_autostart / set_autostart)
     launcher.py              # open_ui / stop_ui / update / uninstall
     tray.ps1                 # Windows PowerShell WinForms system tray host
+docs/
+  ui-guide.md                # Annotated visual Web UI guide (Vietnamese)
 tests/                       # pytest unit/integration/API suite, CDP browser E2E, Windows sandbox E2E
 ```
 

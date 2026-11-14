@@ -10,6 +10,7 @@ import { renderStatus } from './render/status.js';
 import { renderActiveFilters, renderSessions } from './render/sessionList.js';
 import { closeProviderDropdown } from './providerDropdown.js';
 import { closePreview } from './drawer.js';
+import { t } from './i18n.js';
 
 let pollTimer = null;
 
@@ -35,7 +36,7 @@ export async function fetchSessions({ silent = false, rethrow = false } = {}) {
   const seq = ++state.sessionsReqSeq;
   state.filtering = !silent;
   if (!silent) {
-    $('listSummary').textContent = 'Loading conversations...';
+    $('listSummary').textContent = t('list.loadingConvs');
     renderActiveFilters();
   }
 
@@ -60,15 +61,15 @@ export async function fetchSessions({ silent = false, rethrow = false } = {}) {
   } catch (e) {
     if (seq !== state.sessionsReqSeq) return;
     state.filtering = false;
-    $('listSummary').textContent = 'Failed to load sessions';
+    $('listSummary').textContent = t('conn.loadFailed');
     if (rethrow) throw e;
     if (!e.httpStatus) {
       state.connFailures += 1;
-      $('connBannerText').textContent = 'UI server unreachable. Start it again with "mcas ui".';
+      $('connBannerText').textContent = t('conn.unreachable');
       $('connBanner').hidden = false;
     }
     if (!silent) {
-      toast(e.message || 'Failed to load sessions.', 'err');
+      toast(e.message || t('conn.loadFailedToast'), 'err');
     }
   }
 }
@@ -87,7 +88,7 @@ export async function refreshAll(manual = false) {
     if (!e.httpStatus) {
       state.connFailures += 1;
       if (state.connFailures >= 2 || manual) {
-        $('connBannerText').textContent = 'UI server unreachable. Start it again with "mcas ui".';
+        $('connBannerText').textContent = t('conn.unreachable');
         $('connBanner').hidden = false;
         if (state.connFailures >= 3) {
           stopPolling();
@@ -110,7 +111,7 @@ export async function copySingleSession(source, id, toProvider, includeThinking)
         overwrite: false,
         includeThinking: !!includeThinking,
       });
-      summarizeBatchToast(r, `Copied to ${toProvider}`);
+      summarizeBatchToast(r, t('copy.copiedTo', { to: toProvider }));
       if (r.status) renderStatus(r.status);
       else await fetchStatus();
       await fetchSessions();
@@ -142,7 +143,7 @@ export async function copySelectedSessions() {
         overwrite,
         includeThinking,
       });
-      summarizeBatchToast(r, `Copied ${items.length} conversation(s) to ${toProvider}`);
+      summarizeBatchToast(r, t('copy.copiedBatch', { n: items.length, to: toProvider }));
       state.selected.clear();
       if (r.status) renderStatus(r.status);
       else await fetchStatus();
@@ -158,10 +159,11 @@ export async function confirmDeleteGroup(g) {
   const members = Array.isArray(g.membersList) && g.membersList.length ? g.membersList : [g.primary];
   const provDesc = (g.providers || []).join(', ');
   const sizeStr = g.sizeHuman || formatBytes(g.sizeBytes || 0);
+  const copyWord = members.length === 1 ? t('delete.copyOne') : t('delete.copyMany');
   const ok = await askConfirm(
-    'Delete conversation completely?',
-    `Permanently delete "${title}" from ${provDesc} (${members.length} ${members.length === 1 ? 'copy' : 'copies'}, ${sizeStr})? This cannot be undone.`,
-    'Delete completely',
+    t('delete.confirmTitle'),
+    t('delete.confirmMsg', { title, providers: provDesc, count: members.length, copyWord, size: sizeStr }),
+    t('delete.confirmBtn'),
     true
   );
   if (!ok) return false;
@@ -179,7 +181,7 @@ export async function confirmDeleteGroup(g) {
       ) {
         closePreview();
       }
-      toast(r.message || 'Conversation deleted.', 'ok');
+      toast(r.message || t('delete.done'), 'ok');
       if (r.status) renderStatus(r.status);
       else await fetchStatus();
       await fetchSessions();
@@ -222,7 +224,7 @@ export async function applyGroupProviders(g, desiredProviders, includeThinking) 
         });
         if (r.status) lastStatus = r.status;
         cmds.push(...extractResultCommands(r.results || []));
-        notes.push(`Added to ${toProv}`);
+        notes.push(t('copy.addedTo', { to: toProv }));
       }
 
       if (toRemove.length) {
@@ -234,7 +236,7 @@ export async function applyGroupProviders(g, desiredProviders, includeThinking) 
         if (delItems.length) {
           const dr = await api('delete', { items: delItems, deleteSyncedPeers: false });
           if (dr.status) lastStatus = dr.status;
-          notes.push(`Removed from ${toRemove.join(', ')} (${dr.freedHuman || '0 B'} freed)`);
+          notes.push(t('copy.removedFrom', { list: toRemove.join(', '), freed: dr.freedHuman || '0 B' }));
           if (
             state.drawerSession &&
             delItems.some((m) => m.source === state.drawerSession.source && m.id === state.drawerSession.id)
@@ -244,7 +246,7 @@ export async function applyGroupProviders(g, desiredProviders, includeThinking) 
         }
       }
 
-      toast(notes.join(' \u00b7 ') || 'Providers updated.', 'ok', cmds);
+      toast(notes.join(' \u00b7 ') || t('copy.providersUpdated'), 'ok', cmds);
       if (lastStatus) renderStatus(lastStatus);
       else await fetchStatus();
       await fetchSessions();
@@ -268,9 +270,9 @@ export async function confirmDeleteSelected() {
     }
   }
   const ok = await askConfirm(
-    `Delete ${groups.length} selected conversation(s)?`,
-    `Permanently delete ${groups.length} conversation(s) (${items.length} provider copies, ~${formatBytes(totalBytes)})? This cannot be undone.`,
-    'Delete Selected',
+    t('delete.bulkTitle', { n: groups.length }),
+    t('delete.bulkMsg', { n: groups.length, copies: items.length, size: formatBytes(totalBytes) }),
+    t('sel.deleteSelected'),
     true
   );
   if (!ok) return;
@@ -285,7 +287,7 @@ export async function confirmDeleteSelected() {
       ) {
         closePreview();
       }
-      toast(r.message || 'Selected conversations deleted.', 'ok');
+      toast(r.message || t('delete.bulkDone'), 'ok');
       if (r.status) renderStatus(r.status);
       else await fetchStatus();
       await fetchSessions();

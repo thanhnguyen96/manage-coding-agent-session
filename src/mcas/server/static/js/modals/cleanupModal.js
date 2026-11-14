@@ -7,25 +7,26 @@ import { askConfirm } from '../components/confirmModal.js';
 import { closeProviderDropdown } from '../providerDropdown.js';
 import { renderStatus } from '../render/status.js';
 import { fetchSessions, fetchStatus } from '../actions.js';
+import { t } from '../i18n.js';
 
 export function renderStorageSummaryGrid() {
   const host = $('clStorageGrid');
   const st = (state.status && state.status.storage) || {};
   host.replaceChildren(
     el('div', { className: 'storage-stat' },
-      el('span', { className: 'lbl', textContent: 'Total Storage' }),
+      el('span', { className: 'lbl', textContent: t('cleanup.totalStorage') }),
       el('span', { className: 'val', textContent: st.totalHuman || '0 B' })
     ),
     el('div', { className: 'storage-stat' },
-      el('span', { className: 'lbl', textContent: 'Antigravity (agy)' }),
+      el('span', { className: 'lbl', textContent: t('cleanup.agyLabel') }),
       el('span', { className: 'val', textContent: st.agyHuman || '0 B' })
     ),
     el('div', { className: 'storage-stat' },
-      el('span', { className: 'lbl', textContent: 'Claude Code (claude)' }),
+      el('span', { className: 'lbl', textContent: t('cleanup.claudeLabel') }),
       el('span', { className: 'val', textContent: st.claudeHuman || '0 B' })
     ),
     el('div', { className: 'storage-stat' },
-      el('span', { className: 'lbl', textContent: 'Orphans / Empty / Subagents' }),
+      el('span', { className: 'lbl', textContent: t('cleanup.orphansSummaryLabel') }),
       el('span', {
         className: 'val',
         textContent: `${st.orphanHuman || '0 B'} \u00b7 ${st.orphanCount || 0} / ${st.emptyCount || 0} / ${st.subagentCount || 0}`,
@@ -60,9 +61,9 @@ export async function runStorageClean(dryRun) {
 
   if (!dryRun) {
     const ok = await askConfirm(
-      'Run storage cleanup?',
-      'This will permanently remove the selected orphans/sessions. Consider clicking "Preview (Dry Run)" first.',
-      'Clean Up Now',
+      t('cleanup.confirmTitle'),
+      t('cleanup.confirmMsg'),
+      t('cleanup.runBtn'),
       true
     );
     if (!ok) return;
@@ -73,22 +74,22 @@ export async function runStorageClean(dryRun) {
       const r = await api('clean', payload);
       if (dryRun) {
         $('clPreviewBox').hidden = false;
-        $('clPreviewSummary').textContent = r.message || `Estimated freed: ${r.freedHuman || '0 B'}`;
+        $('clPreviewSummary').textContent = r.message || t('cleanup.estimatedFreed', { freed: r.freedHuman || '0 B' });
         const ul = $('clPreviewList');
         ul.replaceChildren();
         const items = Array.isArray(r.previewItems) ? r.previewItems : [];
         if (!items.length) {
-          ul.append(el('li', { textContent: 'Nothing matches these cleanup criteria.' }));
+          ul.append(el('li', { textContent: t('cleanup.nothingMatched') }));
         } else {
           for (const it of items.slice(0, 60)) {
             ul.append(el('li', { textContent: `[${it.kind || ''}] ${it.label || ''} (${it.sizeHuman || '0 B'})` }));
           }
           if (items.length > 60) {
-            ul.append(el('li', { textContent: `... and ${items.length - 60} more item(s)` }));
+            ul.append(el('li', { textContent: t('cleanup.moreItems', { n: items.length - 60 }) }));
           }
         }
       } else {
-        toast(r.message || 'Cleanup complete.', 'ok');
+        toast(r.message || t('cleanup.done'), 'ok');
         $('clPreviewBox').hidden = true;
         if (r.status) renderStatus(r.status);
         else await fetchStatus();

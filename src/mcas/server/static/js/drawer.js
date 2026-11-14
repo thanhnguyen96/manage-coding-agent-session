@@ -12,6 +12,7 @@ import {
 import { copyText } from './components/toast.js';
 import { confirmDeleteGroup, copySingleSession } from './actions.js';
 import { openTrimModal } from './modals/trimModal.js';
+import { t } from './i18n.js';
 
 export function closePreview() {
   $('previewBackdrop').hidden = true;
@@ -73,7 +74,7 @@ export function renderDrawerContent(data) {
   const badge = $('drawerBadge');
   badge.textContent = data.source || 'session';
   badge.className = 'pbadge ' + (data.source === 'agy' ? 'agy' : data.source === 'claude' ? 'claude' : 'other');
-  $('drawerTitle').textContent = data.title || '(untitled)';
+  $('drawerTitle').textContent = data.title || t('row.untitled');
 
   const tabsHost = $('drawerProvTabs');
   if (matchedGroup.providers.length > 1) {
@@ -100,18 +101,18 @@ export function renderDrawerContent(data) {
 
   const meta = $('drawerMetaGrid');
   const sizeDetail = data.sizeHuman
-    ? `${data.sizeHuman} (main: ${data.mainHuman || '0 B'}, sidecars: ${data.sidecarHuman || '0 B'})`
+    ? t('drawer.sizeDetail', { total: data.sizeHuman, main: data.mainHuman || '0 B', sidecar: data.sidecarHuman || '0 B' })
     : '0 B';
   meta.replaceChildren(
-    el('div', {}, el('span', { className: 'brand-sub', textContent: 'ID: ' }), el('code', { textContent: data.id || '' })),
-    el('div', {}, el('span', { className: 'brand-sub', textContent: 'Folder: ' }), el('code', { textContent: data.cwd || '(none)' })),
-    el('div', {}, el('span', { className: 'brand-sub', textContent: 'Updated: ' }), el('span', { textContent: data.updatedLocal || formatLocalDate(data.updatedAt) || '-' })),
-    el('div', {}, el('span', { className: 'brand-sub', textContent: 'Turns: ' }), el('span', { textContent: String((data.turns || []).length) })),
-    el('div', {}, el('span', { className: 'brand-sub', textContent: 'Size: ' }), el('span', { textContent: sizeDetail }))
+    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.idLbl') }), el('code', { textContent: data.id || '' })),
+    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.folderLbl') }), el('code', { textContent: data.cwd || t('drawer.none') })),
+    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.updatedLbl') }), el('span', { textContent: data.updatedLocal || formatLocalDate(data.updatedAt) || '-' })),
+    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.turnsLbl') }), el('span', { textContent: String((data.turns || []).length) })),
+    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.sizeLbl') }), el('span', { textContent: sizeDetail }))
   );
   if (matchedGroup.providers.length > 1) {
     meta.append(el('div', {},
-      el('span', { className: 'brand-sub', textContent: 'Providers: ' }),
+      el('span', { className: 'brand-sub', textContent: t('drawer.providersLbl') }),
       el('span', { className: 'sync-badge', textContent: `(${matchedGroup.providers.join(', ')})` })
     ));
   }
@@ -125,7 +126,7 @@ export function renderDrawerContent(data) {
   $('drawerCmdText').textContent = rCmd;
 
   const target = oppositeProvider(data.source);
-  $('drawerCopyBtn').textContent = target === 'claude' ? 'Copy \u2192 Claude' : 'Copy \u2192 AGY';
+  $('drawerCopyBtn').textContent = target === 'claude' ? t('drawer.copyToClaude') : t('drawer.copyToAgy');
   $('drawerCopyBtn').onclick = () => copySingleSession(data.source, data.id, target, $('drawerThinking').checked);
   $('drawerTrimBtn').onclick = () => openTrimModal(matchedGroup);
   $('drawerDeleteBtn').onclick = () => confirmDeleteGroup(matchedGroup);
@@ -134,40 +135,40 @@ export function renderDrawerContent(data) {
   turnsHost.replaceChildren();
   const turns = Array.isArray(data.turns) ? data.turns : [];
   if (!turns.length) {
-    turnsHost.append(el('div', { className: 'empty-state', textContent: 'This session has no visible conversation turns.' }));
+    turnsHost.append(el('div', { className: 'empty-state', textContent: t('drawer.emptyTurns') }));
     return;
   }
 
-  for (const t of turns) {
-    const role = (t.role || 'assistant').toLowerCase();
+  for (const turn of turns) {
+    const role = (turn.role || 'assistant').toLowerCase();
     const cls = (role === 'user' || role === 'assistant' || role === 'tool_result' || role === 'error') ? role : 'system';
     const card = el('article', { className: 'turn ' + cls });
 
     const head = el('div', { className: 'turn-head' },
       el('div', { className: 'row-title-line' },
         el('span', { className: 'role-badge', textContent: role.replace('_', ' ') }),
-        el('span', { textContent: `#${(t.index ?? 0) + 1}` })
+        el('span', { textContent: `#${(turn.index ?? 0) + 1}` })
       ),
-      el('span', { textContent: t.timestampLocal || (t.timestamp ? formatLocalDate(t.timestamp, t.timestamp) : '') })
+      el('span', { textContent: turn.timestampLocal || (turn.timestamp ? formatLocalDate(turn.timestamp, turn.timestamp) : '') })
     );
     card.append(head);
 
-    if (t.thinking && String(t.thinking).trim()) {
-      const th = String(t.thinking);
+    if (turn.thinking && String(turn.thinking).trim()) {
+      const th = String(turn.thinking);
       card.append(el('details', { className: 'thought' },
-        el('summary', { textContent: `Thinking (${th.length} chars)` }),
+        el('summary', { textContent: t('drawer.thinkingChars', { n: th.length }) }),
         el('pre', { textContent: th })
       ));
     }
 
-    if (t.text && String(t.text).trim()) {
+    if (turn.text && String(turn.text).trim()) {
       const txtEl = el('div', { className: 'turn-text' });
-      renderMessageText(txtEl, t.text);
+      renderMessageText(txtEl, turn.text);
       card.append(txtEl);
     }
 
-    if (Array.isArray(t.toolCalls)) {
-      for (const tc of t.toolCalls) {
+    if (Array.isArray(turn.toolCalls)) {
+      for (const tc of turn.toolCalls) {
         if (!tc) continue;
         const name = tc.name || 'tool';
         const idPart = tc.id ? ` (${tc.id})` : '';
@@ -178,14 +179,14 @@ export function renderDrawerContent(data) {
           args = JSON.stringify(args, null, 2);
         }
         card.append(el('details', {},
-          el('summary', { textContent: `Tool call: ${name}${idPart}` }),
+          el('summary', { textContent: t('drawer.toolCall', { name, id: idPart }) }),
           el('pre', { textContent: String(args || '{}') })
         ));
       }
     }
 
-    if (Array.isArray(t.toolResults)) {
-      for (const tr of t.toolResults) {
+    if (Array.isArray(turn.toolResults)) {
+      for (const tr of turn.toolResults) {
         if (!tr) continue;
         const isErr = !!(tr.isError ?? tr.is_error);
         const callId = tr.toolUseId || tr.toolCallId || tr.tool_use_id || '';
@@ -194,10 +195,10 @@ export function renderDrawerContent(data) {
         const out = typeof tr.content === 'string' ? tr.content : JSON.stringify(tr.content ?? tr.output ?? '', null, 2);
         const det = el('details', {},
           el('summary', {
-            textContent: `Tool result${isErr ? ' [ERROR]' : ''}: ${name}${idSuffix}`,
+            textContent: t('drawer.toolResult', { err: isErr ? ' [ERROR]' : '', name, id: idSuffix }),
             style: isErr ? { color: 'var(--danger)' } : undefined,
           }),
-          el('pre', { textContent: out || '(empty output)' })
+          el('pre', { textContent: out || t('drawer.emptyOutput') })
         );
         card.append(det);
       }
@@ -216,19 +217,19 @@ export function openPreviewGroup(g, preferredProv) {
 export async function openPreview(source, id, group = null) {
   if (group) state.drawerGroup = group;
   $('previewBackdrop').hidden = false;
-  $('drawerTitle').textContent = 'Loading session...';
+  $('drawerTitle').textContent = t('drawer.loading');
   $('drawerProvTabs').hidden = true;
   $('drawerMetaGrid').replaceChildren();
   $('drawerDirBox').hidden = true;
   $('drawerCmdBox').hidden = true;
-  $('drawerTurns').replaceChildren(el('div', { className: 'empty-state', textContent: 'Loading conversation turns...' }));
+  $('drawerTurns').replaceChildren(el('div', { className: 'empty-state', textContent: t('drawer.loadingTurns') }));
 
   try {
     const params = new URLSearchParams({ source, id });
     const data = await api('session?' + params.toString());
     renderDrawerContent(data);
   } catch (e) {
-    $('drawerTitle').textContent = 'Failed to load session';
+    $('drawerTitle').textContent = t('drawer.loadFailed');
     $('drawerTurns').replaceChildren(el('div', { className: 'empty-state', textContent: e.message }));
   }
 }

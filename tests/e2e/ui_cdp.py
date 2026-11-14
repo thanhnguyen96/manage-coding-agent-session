@@ -422,6 +422,7 @@ def run_cdp_e2e() -> None:
         chrome_log_fh.close()
 
         cdp = CDPClient(targets["webSocketDebuggerUrl"])
+        cdp.call("Page.enable")
         cdp.call("Runtime.enable")
         cdp.call("Network.enable")
 
@@ -443,6 +444,261 @@ def run_cdp_e2e() -> None:
         )
         assert state_snap["rowCount"] == 2, f"Expected 2 grouped rows, got {state_snap}"
         assert "(claude, agy)" in state_snap["tags"], f"Missing (claude, agy) tag: {state_snap}"
+
+        # 1a. Top-right placement of #helpBtn, #langBtn, #themeBtn inside .topbar
+        placement = cdp.eval_js(
+            """(() => {
+            const tb = document.querySelector('.topbar').getBoundingClientRect();
+            const hb = document.getElementById('helpBtn').getBoundingClientRect();
+            const lb = document.getElementById('langBtn').getBoundingClientRect();
+            const th = document.getElementById('themeBtn').getBoundingClientRect();
+            const aw = document.getElementById('autostartWrap')?.getBoundingClientRect();
+            return {
+                topbar: { top: tb.top, right: tb.right, bottom: tb.bottom, width: tb.width },
+                help: { top: hb.top, right: hb.right, bottom: hb.bottom, width: hb.width, height: hb.height },
+                lang: { top: lb.top, right: lb.right, bottom: lb.bottom, width: lb.width, height: lb.height },
+                theme: { top: th.top, right: th.right, bottom: th.bottom, width: th.width, height: th.height },
+                autostartVisible: !!(aw && aw.width > 0 && aw.height > 0),
+                viewportHeight: window.innerHeight,
+            };
+        })()"""
+        )
+        assert placement["autostartVisible"], f"Missing visible #autostartWrap: {placement}"
+        for key in ("help", "lang", "theme"):
+            r = placement[key]
+            assert r["width"] > 0 and r["height"] > 0, f"{key} has zero size: {placement}"
+            assert r["top"] >= placement["topbar"]["top"] - 2, f"{key} above topbar: {placement}"
+            assert r["bottom"] <= placement["topbar"]["bottom"] + 2, f"{key} below topbar: {placement}"
+            assert r["right"] <= placement["topbar"]["right"] + 2, f"{key} outside topbar right: {placement}"
+            assert r["top"] < placement["viewportHeight"] / 2, f"{key} not in top half: {placement}"
+        assert (
+            placement["theme"]["right"] >= placement["lang"]["right"] >= placement["help"]["right"]
+        ), f"Expected #themeBtn rightmost, then #langBtn, then #helpBtn: {placement}"
+        assert placement["theme"]["right"] >= placement["topbar"]["right"] - 32, (
+            f"Expected #themeBtn at far top-right edge: {placement}"
+        )
+
+        # 1b. Language switcher (#langBtn & #langMenu) with SVG flags, VI switch, reload persistence, EN restore
+        lang_init = cdp.eval_js(
+            """(() => {
+            const btnSvg = document.querySelector('#langBtn svg');
+            const optEn = document.querySelector('#langMenu .lang-opt[data-lang="en"]');
+            const optVi = document.querySelector('#langMenu .lang-opt[data-lang="vi"]');
+            return {
+                htmlLang: document.documentElement.lang,
+                btnCode: document.getElementById('langBtnCode')?.textContent?.trim(),
+                btnSvgShapes: btnSvg ? btnSvg.querySelectorAll('rect, path, polygon, circle').length : 0,
+                optEnText: optEn?.querySelector('.lang-opt-label')?.textContent?.trim(),
+                optViText: optVi?.querySelector('.lang-opt-label')?.textContent?.trim(),
+                optEnSvg: optEn ? optEn.querySelectorAll('svg rect, svg path, svg polygon, svg circle').length : 0,
+                optViSvg: optVi ? optVi.querySelectorAll('svg rect, svg path, svg polygon, svg circle').length : 0,
+                helpText: document.getElementById('helpBtn')?.textContent?.trim(),
+                tabSessions: document.getElementById('tabBtnSessions')?.textContent?.trim(),
+            };
+        })()"""
+        )
+        assert lang_init["htmlLang"] == "en", f"Expected initial lang='en', got {lang_init}"
+        assert lang_init["btnCode"] == "EN", f"Expected EN badge, got {lang_init}"
+        assert lang_init["btnSvgShapes"] >= 3, f"Expected crisp SVG flag on #langBtn: {lang_init}"
+        assert lang_init["optEnText"] == "English" and lang_init["optViText"] == "Tiếng Việt", lang_init
+        assert lang_init["optEnSvg"] >= 3 and lang_init["optViSvg"] >= 2, f"Missing menu SVG flags: {lang_init}"
+
+        cdp.eval_js("document.getElementById('langBtn').click()")
+        _wait_cond(cdp, "!document.getElementById('langMenu').hidden", desc="langMenu open")
+        cdp.eval_js("""document.querySelector('#langMenu .lang-opt[data-lang="vi"]').click()""")
+        _wait_cond(
+            cdp,
+            "document.documentElement.lang === 'vi' && document.getElementById('langMenu').hidden",
+            desc="switch language to vi",
+        )
+        vi_snap = cdp.eval_js(
+            """(() => ({
+            htmlLang: document.documentElement.lang,
+            stored: localStorage.getItem('mcas.lang'),
+            btnCode: document.getElementById('langBtnCode')?.textContent?.trim(),
+            helpText: document.getElementById('helpBtn')?.textContent?.trim(),
+            tabSessions: document.getElementById('tabBtnSessions')?.textContent?.trim(),
+            tabAutosync: document.getElementById('tabBtnAutosync')?.textContent?.trim(),
+            cleanupBtn: document.getElementById('openCleanupBtn')?.textContent?.trim(),
+            quitBtn: document.getElementById('quitBtn')?.textContent?.trim(),
+        }))()"""
+        )
+        assert vi_snap["stored"] == "vi" and vi_snap["btnCode"] == "VI", vi_snap
+        assert "Hướng dẫn" in (vi_snap["helpText"] or ""), vi_snap
+        assert "Phiên" in (vi_snap["tabSessions"] or ""), vi_snap
+        assert "Hoạt động" in (vi_snap["tabAutosync"] or ""), vi_snap
+        assert "Dọn dẹp" in (vi_snap["cleanupBtn"] or ""), vi_snap
+        assert "Dừng máy chủ" in (vi_snap["quitBtn"] or ""), vi_snap
+
+        # Verify provider dropdown translates in Vietnamese too
+        cdp.eval_js(
+            """(() => {
+            const row = [...document.querySelectorAll('#sessionList .session-row')].find(r => r.textContent.includes('Synced Pair Chat'));
+            row.querySelector('.prov-tag-btn').click();
+        })()"""
+        )
+        _wait_cond(cdp, "document.querySelector('.prov-dropdown-menu') !== null", desc="vi dropdown open")
+        vi_dd_texts = cdp.eval_js(
+            "[...document.querySelectorAll('.prov-dropdown-menu button')].map(b => b.textContent.trim())"
+        )
+        assert any("Bỏ chọn hết" in x for x in vi_dd_texts) and any("Áp dụng" in x for x in vi_dd_texts), (
+            f"Expected Vietnamese dropdown buttons, got {vi_dd_texts}"
+        )
+        cdp.eval_js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
+        _wait_cond(cdp, "document.querySelector('.prov-dropdown-menu') === null", desc="vi dropdown closed")
+
+        # Reload page and verify 'vi' persists from localStorage
+        cdp.call("Page.reload")
+        _wait_cond(
+            cdp,
+            "document.readyState === 'complete' && document.querySelectorAll('#sessionList .session-row').length >= 2",
+            desc="page reload in vi",
+        )
+        vi_reload = cdp.eval_js(
+            """(() => ({
+            htmlLang: document.documentElement.lang,
+            stored: localStorage.getItem('mcas.lang'),
+            btnCode: document.getElementById('langBtnCode')?.textContent?.trim(),
+            helpText: document.getElementById('helpBtn')?.textContent?.trim(),
+            tabSessions: document.getElementById('tabBtnSessions')?.textContent?.trim(),
+        }))()"""
+        )
+        assert vi_reload["htmlLang"] == "vi" and vi_reload["stored"] == "vi", vi_reload
+        assert vi_reload["btnCode"] == "VI", vi_reload
+        assert "Hướng dẫn" in (vi_reload["helpText"] or ""), vi_reload
+        assert "Phiên" in (vi_reload["tabSessions"] or ""), vi_reload
+
+        # Switch back to 'en' and verify English labels restore cleanly
+        cdp.eval_js("document.getElementById('langBtn').click()")
+        _wait_cond(cdp, "!document.getElementById('langMenu').hidden", desc="langMenu open for en restore")
+        cdp.eval_js("""document.querySelector('#langMenu .lang-opt[data-lang="en"]').click()""")
+        _wait_cond(
+            cdp,
+            "document.documentElement.lang === 'en' && document.getElementById('langMenu').hidden",
+            desc="restore language to en",
+        )
+        en_restored = cdp.eval_js(
+            """(() => ({
+            htmlLang: document.documentElement.lang,
+            stored: localStorage.getItem('mcas.lang'),
+            btnCode: document.getElementById('langBtnCode')?.textContent?.trim(),
+            helpText: document.getElementById('helpBtn')?.textContent?.trim(),
+            tabSessions: document.getElementById('tabBtnSessions')?.textContent?.trim(),
+            cleanupBtn: document.getElementById('openCleanupBtn')?.textContent?.trim(),
+        }))()"""
+        )
+        assert en_restored["stored"] == "en" and en_restored["btnCode"] == "EN", en_restored
+        assert en_restored["helpText"] == "Help", en_restored
+        assert "Sessions" in (en_restored["tabSessions"] or ""), en_restored
+        assert "Clean Up" in (en_restored["cleanupBtn"] or ""), en_restored
+
+        # 1c. Help / Visual FAQ modal (#helpBtn -> #helpModal): all 5 tabs, 7 guide images, VI FAQ, Close & Escape
+        cdp.eval_js("document.getElementById('helpBtn').click()")
+        _wait_cond(cdp, "!document.getElementById('helpModal').hidden", desc="helpModal open")
+        loaded_guide_srcs: set[str] = set()
+        for tab_id in ("overview", "providers", "drawer", "cleanup", "autosync"):
+            cdp.eval_js(
+                f"""(() => {{
+                const btn = document.querySelector('#helpTabs .help-tab-btn[data-help-tab="{tab_id}"]');
+                if (!btn) throw new Error('Missing help tab: {tab_id}');
+                btn.click();
+            }})()"""
+            )
+            _wait_cond(
+                cdp,
+                f"""(() => {{
+                    const active = document.querySelector('#helpTabs .help-tab-btn[data-help-tab="{tab_id}"].active');
+                    const imgs = [...document.querySelectorAll('#helpBody img')];
+                    return !!active && imgs.length > 0 && imgs.every(im => im.complete);
+                }})()""",
+                desc=f"help tab {tab_id} images complete",
+            )
+            tab_info = cdp.eval_js(
+                """(() => {
+                const imgs = [...document.querySelectorAll('#helpBody img')];
+                return {
+                    imgs: imgs.map(im => ({
+                        src: im.getAttribute('src'),
+                        complete: im.complete,
+                        naturalWidth: im.naturalWidth,
+                        hidden: im.hidden,
+                    })),
+                    legendCount: document.querySelectorAll('#helpBody .help-legend-item').length,
+                    useCaseCount: document.querySelectorAll('#helpBody .help-usecase-card').length,
+                };
+            })()"""
+            )
+            assert tab_info["legendCount"] > 0, f"Expected legend items in {tab_id}: {tab_info}"
+            if tab_id == "autosync":
+                assert tab_info["useCaseCount"] >= 3, f"Expected use-case cards in autosync: {tab_info}"
+            for im in tab_info["imgs"]:
+                assert im["complete"] and im["naturalWidth"] > 0 and not im["hidden"], (
+                    f"Guide image failed to load in tab {tab_id}: {im}"
+                )
+                loaded_guide_srcs.add(im["src"])
+
+        expected_guide_imgs = {
+            "/static/img/guide-topbar.png",
+            "/static/img/guide-filters-row.png",
+            "/static/img/guide-provider-dd.png",
+            "/static/img/guide-drawer.png",
+            "/static/img/guide-lighten.png",
+            "/static/img/guide-cleanup.png",
+            "/static/img/guide-autosync.png",
+        }
+        assert expected_guide_imgs <= loaded_guide_srcs, (
+            f"Missing guide images across Help tabs: {expected_guide_imgs - loaded_guide_srcs}"
+        )
+
+        # Close Help with close button, switch to vi, reopen via '?' shortcut, verify VI FAQ, close with Escape
+        cdp.eval_js("document.getElementById('helpCloseBtn').click()")
+        _wait_cond(cdp, "document.getElementById('helpModal').hidden", desc="helpModal closed via closeBtn")
+
+        cdp.eval_js("document.getElementById('langBtn').click()")
+        _wait_cond(cdp, "!document.getElementById('langMenu').hidden", desc="langMenu open before vi FAQ")
+        cdp.eval_js("""document.querySelector('#langMenu .lang-opt[data-lang="vi"]').click()""")
+        _wait_cond(
+            cdp,
+            "document.documentElement.lang === 'vi' && document.getElementById('langMenu').hidden",
+            desc="lang vi before helpModal",
+        )
+        cdp.eval_js("document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true }))")
+        _wait_cond(cdp, "!document.getElementById('helpModal').hidden", desc="helpModal opened via ? shortcut")
+        vi_help = cdp.eval_js(
+            """(() => ({
+            title: document.getElementById('helpTitle')?.textContent?.trim(),
+            tabTexts: [...document.querySelectorAll('#helpTabs .help-tab-btn')].map(b => b.textContent.trim()),
+            secTitles: [...document.querySelectorAll('#helpBody .help-sec-title')].map(h => h.textContent.trim()),
+            useWhen: document.querySelector('#helpBody .help-legend-when em')?.textContent?.trim(),
+        }))()"""
+        )
+        assert "Hướng dẫn" in (vi_help["title"] or ""), vi_help
+        assert any("Tổng quan" in x for x in vi_help["tabTexts"]), vi_help
+        assert any(
+            "Auto-Sync" in x or "tình huống" in x.lower() for x in vi_help["secTitles"]
+        ), vi_help
+        assert "Dùng khi:" in (vi_help["useWhen"] or ""), vi_help
+        cdp.eval_js(
+            """document.querySelector('#helpTabs .help-tab-btn[data-help-tab="overview"]').click()"""
+        )
+        _wait_cond(
+            cdp,
+            """document.querySelector('#helpBody .help-sec-title')?.textContent?.includes('Thanh tiêu đề')""",
+            desc="vi overview heading in helpModal",
+        )
+
+        cdp.eval_js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
+        _wait_cond(cdp, "document.getElementById('helpModal').hidden", desc="helpModal closed via Escape")
+
+        # Restore English before running the core workflow assertions
+        cdp.eval_js("document.getElementById('langBtn').click()")
+        _wait_cond(cdp, "!document.getElementById('langMenu').hidden", desc="langMenu open to restore en")
+        cdp.eval_js("""document.querySelector('#langMenu .lang-opt[data-lang="en"]').click()""")
+        _wait_cond(
+            cdp,
+            "document.documentElement.lang === 'en' && document.getElementById('langMenu').hidden",
+            desc="lang restored to en",
+        )
 
         # 2. Sort by size descending -> Heavy UI Chat first
         cdp.eval_js(

@@ -14,6 +14,7 @@ import { renderFilterPills, renderWorkspaceSelect } from './status.js';
 import { fetchSessions } from '../actions.js';
 import { openPreviewGroup } from '../drawer.js';
 import { openTrimModal } from '../modals/trimModal.js';
+import { t } from '../i18n.js';
 
 export function setCwdFilter(cwd) {
   state.cwdFilter = (cwd || '').trim();
@@ -42,21 +43,21 @@ export function renderActiveFilters() {
   const addChip = (label, onClear) => {
     host.append(el('span', { className: 'filter-chip' },
       el('span', { textContent: label }),
-      el('button', { type: 'button', textContent: '\u00d7', title: 'Clear filter', onclick: onClear })
+      el('button', { type: 'button', textContent: '\u00d7', title: t('filter.clearChipTitle'), onclick: onClear })
     ));
   };
   if (state.sourceFilter !== 'all') {
-    addChip(`Provider: ${state.sourceFilter}`, () => {
+    addChip(t('filter.chipProvider', { val: state.sourceFilter }), () => {
       state.sourceFilter = 'all';
       renderFilterPills();
       fetchSessions();
     });
   }
   if (state.cwdFilter) {
-    addChip(`Folder: ${state.cwdFilter}`, () => clearCwdFilter());
+    addChip(t('filter.chipFolder', { val: state.cwdFilter }), () => clearCwdFilter());
   }
   if (state.q) {
-    addChip(`Search: "${state.q}"`, () => {
+    addChip(t('filter.chipSearch', { val: state.q }), () => {
       state.q = '';
       $('searchInput').value = '';
       $('searchClear').hidden = true;
@@ -72,8 +73,8 @@ export function updateSelectionUI() {
     totalBytes += Number(g.sizeBytes) || 0;
   }
   $('selCount').textContent = count
-    ? `${count} selected \u00b7 ${formatBytes(totalBytes)}`
-    : '0 selected';
+    ? t('sel.countBytes', { n: count, size: formatBytes(totalBytes) })
+    : t('sel.zero');
   $('selectionBar').hidden = count === 0;
 
   if (count > 0) {
@@ -97,16 +98,22 @@ export function renderSessions() {
   const groupCount = state.groups.length;
   const total = state.total ?? state.sessions.length;
   $('tabSessionsCount').textContent = String(groupCount);
-  $('listSummary').textContent = state.sessions.length !== groupCount
-    ? `${groupCount} ${groupCount === 1 ? 'conversation' : 'conversations'} (${state.sessions.length} entries)`
-    : `${groupCount} ${groupCount === 1 ? 'conversation' : 'conversations'}`;
+  if (state.sessions.length !== groupCount) {
+    $('listSummary').textContent = groupCount === 1
+      ? t('list.countGroupedOne', { n: groupCount, raw: state.sessions.length })
+      : t('list.countGroupedMany', { n: groupCount, raw: state.sessions.length });
+  } else {
+    $('listSummary').textContent = groupCount === 1
+      ? t('list.countOne', { n: groupCount })
+      : t('list.countMany', { n: groupCount });
+  }
 
   renderActiveFilters();
 
   if (!state.groups.length) {
     const hasFilter = state.sourceFilter !== 'all' || !!state.cwdFilter || !!state.q || state.includeAll;
     const empty = el('li', { className: 'empty-state' },
-      el('p', { textContent: hasFilter ? 'No conversations match the current filters.' : 'No conversations found yet.' })
+      el('p', { textContent: hasFilter ? t('list.emptyFiltered') : t('list.emptyNone') })
     );
     if (state.sourceFilter !== 'all' || state.cwdFilter || state.q) {
       const btnRow = el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' } });
@@ -114,7 +121,7 @@ export function renderSessions() {
         btnRow.append(el('button', {
           type: 'button',
           className: 'sm primary',
-          textContent: 'Show all providers in this folder',
+          textContent: t('list.showAllProviders'),
           onclick: () => {
             state.sourceFilter = 'all';
             renderFilterPills();
@@ -125,7 +132,7 @@ export function renderSessions() {
       btnRow.append(el('button', {
         type: 'button',
         className: 'sm',
-        textContent: 'Reset filters',
+        textContent: t('list.resetFilters'),
         onclick: () => {
           state.sourceFilter = 'all';
           state.q = '';
@@ -156,7 +163,7 @@ export function renderSessions() {
       type: 'checkbox',
       className: 'row-check',
       checked: isChecked,
-      ariaLabel: `Select ${g.title || g.primary.id}`,
+      ariaLabel: t('row.selectAria', { title: g.title || g.primary.id }),
       onclick: (e) => {
         if (e.shiftKey && state.lastCheckedIdx >= 0) {
           const lo = Math.min(state.lastCheckedIdx, idx);
@@ -186,7 +193,7 @@ export function renderSessions() {
       buildProviderTagButton(g, toggleDropdown),
       el('span', {
         className: 'session-title',
-        textContent: g.title || '(untitled)',
+        textContent: g.title || t('row.untitled'),
         onclick: () => openPreviewGroup(g),
       })
     );
@@ -207,7 +214,7 @@ export function renderSessions() {
       ? uniqueIds[0].slice(0, 8)
       : g.providers.map((p) => `${p}:${g.members[p].id.slice(0, 8)}`).join(' \u00b7 ');
     const idTip = uniqueIds.length === 1
-      ? `Click to copy full ID: ${uniqueIds[0]}`
+      ? t('row.idTipSingle', { id: uniqueIds[0] })
       : g.providers.map((p) => `${p}: ${g.members[p].id}`).join('\n');
     const idChip = el('span', {
       className: 'meta-pill mono clickable',
@@ -220,16 +227,16 @@ export function renderSessions() {
       ? el('button', {
           type: 'button',
           className: 'meta-pill clickable',
-          title: `Filter to folder: ${g.cwd}`,
+          title: t('row.filterFolderTip', { cwd: g.cwd }),
           onclick: () => setCwdFilter(g.cwd),
         },
         svgIcon('M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z', 12),
         el('span', { className: 'folder-text mono', textContent: g.cwd }))
-      : el('span', { className: 'meta-pill', textContent: '(no workspace)' });
+      : el('span', { className: 'meta-pill', textContent: t('row.noWorkspace') });
 
     const countChip = el('span', {
       className: 'meta-pill',
-      textContent: `${g.count ?? 0} turns`,
+      textContent: t('row.turns', { n: g.count ?? 0 }),
     });
 
     const sizeBreakdown = g.providers
@@ -256,7 +263,7 @@ export function renderSessions() {
       el('button', {
         type: 'button',
         className: 'sm',
-        textContent: `Providers (${g.providers.join(', ')}) \u25be`,
+        textContent: t('row.providersBtn', { list: g.providers.join(', ') }),
         'aria-expanded': menuOpen ? 'true' : 'false',
         onclick: (e) => {
           e.stopPropagation();
@@ -271,14 +278,14 @@ export function renderSessions() {
       el('button', {
         type: 'button',
         className: 'sm',
-        textContent: 'Lighten',
-        title: 'Lighten conversation in-place to save space',
+        textContent: t('row.lighten'),
+        title: t('row.lightenTitle'),
         onclick: () => openTrimModal(g),
       }),
       el('button', {
         type: 'button',
         className: 'sm',
-        textContent: 'Preview',
+        textContent: t('row.preview'),
         onclick: () => openPreviewGroup(g),
       })
     );
@@ -289,7 +296,7 @@ export function renderSessions() {
 
   if (total > state.sessions.length) {
     $('listFoot').hidden = false;
-    $('listFootText').textContent = `Showing ${state.sessions.length} raw entries (${groupCount} grouped) of ${total} matching entries`;
+    $('listFootText').textContent = t('list.footShowing', { shown: state.sessions.length, grouped: groupCount, total });
   } else {
     $('listFoot').hidden = true;
   }

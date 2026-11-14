@@ -1,11 +1,12 @@
 import { $ } from '../utils/dom.js';
+import { t } from '../i18n.js';
 
-export function askConfirm(title, message, okLabel = 'Confirm', isDanger = true) {
+export function askConfirm(title, message, okLabel, isDanger = true) {
   return new Promise((resolve) => {
-    $('cfTitle').textContent = title;
+    $('cfTitle').textContent = title || t('confirm.defaultTitle');
     $('cfMessage').textContent = message;
     const okBtn = $('cfOkBtn');
-    okBtn.textContent = okLabel;
+    okBtn.textContent = okLabel || t('confirm.confirm');
     okBtn.className = isDanger ? 'danger' : 'primary';
     $('confirmModal').hidden = false;
     okBtn.focus();

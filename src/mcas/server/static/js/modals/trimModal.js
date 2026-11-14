@@ -8,13 +8,24 @@ import { closeProviderDropdown } from '../providerDropdown.js';
 import { renderStatus } from '../render/status.js';
 import { fetchSessions, fetchStatus } from '../actions.js';
 import { openPreview } from '../drawer.js';
+import { t } from '../i18n.js';
+
+export function renderTrimModalLabel() {
+  const g = state.trimTarget;
+  if (!g) return;
+  const provStr = (g.providers || []).join(', ');
+  $('tmSessionLabel').textContent = t('trim.labelFmt', {
+    title: g.title || g.primary.id,
+    providers: provStr,
+    turns: g.count ?? 0,
+    size: g.sizeHuman || formatBytes(g.sizeBytes || 0),
+  });
+}
 
 export function openTrimModal(g) {
   closeProviderDropdown(false);
   state.trimTarget = g;
-  const provStr = (g.providers || []).join(', ');
-  $('tmSessionLabel').textContent =
-    `${g.title || g.primary.id} \u00b7 (${provStr}) \u00b7 ${g.count ?? 0} turns \u00b7 ${g.sizeHuman || formatBytes(g.sizeBytes || 0)}`;
+  renderTrimModalLabel();
   $('trimModal').hidden = false;
   $('tmKeepPreset').focus();
 }
@@ -57,8 +68,15 @@ export function initTrimModal() {
           if (r.status) lastStatus = r.status;
         }
         $('trimModal').hidden = true;
+        const copyWord = members.length === 1 ? t('delete.copyOne') : t('delete.copyMany');
         toast(
-          `Lightened (${members.length} ${members.length === 1 ? 'copy' : 'copies'}): ${formatBytes(totalBefore)} \u2192 ${formatBytes(totalAfter)} (freed ${formatBytes(totalFreed)})`,
+          t('trim.toast', {
+            count: members.length,
+            copyWord,
+            before: formatBytes(totalBefore),
+            after: formatBytes(totalAfter),
+            freed: formatBytes(totalFreed),
+          }),
           'ok'
         );
         if (lastStatus) renderStatus(lastStatus);

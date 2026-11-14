@@ -3,6 +3,7 @@ import { $, el } from '../utils/dom.js';
 import { normalizePathKey } from '../utils/format.js';
 import { renderAutosyncStatus } from '../panels/autosync.js';
 import { fetchSessions } from '../actions.js';
+import { getLang, t } from '../i18n.js';
 
 export function switchTab(tab) {
   state.tab = tab === 'autosync' ? 'autosync' : 'sessions';
@@ -27,7 +28,7 @@ export function renderFilterPills(providers) {
   const allBtn = el('button', {
     type: 'button',
     className: state.sourceFilter === 'all' ? 'active' : '',
-    textContent: 'All',
+    textContent: t('filter.all'),
     onclick: () => {
       state.sourceFilter = 'all';
       renderFilterPills();
@@ -38,19 +39,20 @@ export function renderFilterPills(providers) {
 
   for (const p of list) {
     const soon = !!p.comingSoon || p.supported === false;
+    const pname = p.name || p.id;
     const btn = el('button', {
       type: 'button',
       className: (state.sourceFilter === p.id ? 'active ' : '') + (soon ? 'soon' : ''),
       disabled: soon,
-      title: soon ? `${p.name || p.id} (Coming soon)` : `Show ${p.name || p.id} sessions`,
+      title: soon ? t('filter.soonTitle', { name: pname }) : t('filter.providerTitle', { name: pname }),
       onclick: () => {
         if (soon) return;
         state.sourceFilter = p.id;
         renderFilterPills();
         fetchSessions();
       },
-    }, el('span', { textContent: `${p.name || p.id}` }));
-    if (soon) btn.append(el('span', { className: 'soon-tag', textContent: 'Soon' }));
+    }, el('span', { textContent: `${pname}` }));
+    if (soon) btn.append(el('span', { className: 'soon-tag', textContent: t('filter.soon') }));
     host.append(btn);
   }
 }
@@ -58,9 +60,9 @@ export function renderFilterPills(providers) {
 export function renderWorkspaceSelect(workspaces, { fromPoll = false } = {}) {
   const sel = $('cwdSelect');
   const prevVal = state.cwdCustomMode ? '__custom__' : state.cwdFilter;
-  $('openSyncDirLabel').textContent = state.cwdFilter ? 'Sync this folder \u2192 ...' : 'Sync folder \u2192 ...';
+  $('openSyncDirLabel').textContent = state.cwdFilter ? t('filter.syncThisFolder') : t('filter.syncFolder');
 
-  const sigParts = [state.cwdCustomMode ? '__custom__' : normalizePathKey(prevVal)];
+  const sigParts = [getLang(), state.cwdCustomMode ? '__custom__' : normalizePathKey(prevVal)];
   for (const w of workspaces) {
     if (!w || !w.cwd) continue;
     const c = w.counts || {};
@@ -76,7 +78,7 @@ export function renderWorkspaceSelect(workspaces, { fromPoll = false } = {}) {
   const totalAll = workspaces.reduce((sum, w) => sum + (w.total || 0), 0);
   sel.append(el('option', {
     value: '',
-    textContent: totalAll ? `All folders (${totalAll})` : 'All folders',
+    textContent: totalAll ? t('filter.allFoldersCount', { n: totalAll }) : t('filter.allFolders'),
   }));
 
   let matched = !prevVal;
@@ -102,7 +104,7 @@ export function renderWorkspaceSelect(workspaces, { fromPoll = false } = {}) {
     sel.append(el('option', { value: prevVal, textContent: prevVal, selected: true }));
     selectedVal = prevVal;
   }
-  const customOpt = el('option', { value: '__custom__', textContent: 'Custom folder path...' });
+  const customOpt = el('option', { value: '__custom__', textContent: t('filter.customFolderOpt') });
   if (state.cwdCustomMode) {
     customOpt.selected = true;
     selectedVal = '__custom__';
@@ -113,7 +115,7 @@ export function renderWorkspaceSelect(workspaces, { fromPoll = false } = {}) {
 
 export function renderStatus(s, { fromPoll = false } = {}) {
   state.status = s;
-  $('versionTag').textContent = s.version ? `v${s.version}` : 'ready';
+  $('versionTag').textContent = s.version ? `v${s.version}` : t('top.ready');
   $('autostartToggle').checked = !!s.autostart;
 
   const providers = Array.isArray(s.providers) && s.providers.length ? s.providers : [
@@ -126,14 +128,15 @@ export function renderStatus(s, { fromPoll = false } = {}) {
   chips.replaceChildren();
   for (const p of providers) {
     const soon = !!p.comingSoon || p.supported === false;
+    const pname = p.name || p.id;
     const chip = el('span', {
       className: 'pchip ' + (soon ? 'soon' : 'clickable'),
-      title: soon ? `${p.name || p.id} support coming soon` : `Filter to ${p.name || p.id} sessions`,
+      title: soon ? t('filter.chipSoonTitle', { name: pname }) : t('filter.chipTitle', { name: pname }),
     });
     chip.append(el('span', { className: 'dot ' + (p.id === 'agy' || p.id === 'claude' ? p.id : '') }));
-    chip.append(el('span', { textContent: `${p.name || p.id}` }));
+    chip.append(el('span', { textContent: `${pname}` }));
     if (soon) {
-      chip.append(el('span', { className: 'soon-tag', textContent: 'Soon' }));
+      chip.append(el('span', { className: 'soon-tag', textContent: t('filter.soon') }));
     } else {
       chip.append(el('strong', { textContent: String(p.count ?? 0) }));
       if (p.sizeHuman) {

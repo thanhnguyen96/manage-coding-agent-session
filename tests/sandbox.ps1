@@ -110,6 +110,10 @@ try {
     $st = Invoke-RestMethod "$u/api/status" -Headers $h -UseBasicParsing
     Check 'ui: /api/status with token ok' (@($st.providers).Count -ge 2)
 
+    $i18nResp = Invoke-WebRequest "$u/static/js/i18n.js" -UseBasicParsing
+    $imgResp = Invoke-WebRequest "$u/static/img/guide-topbar.png" -UseBasicParsing
+    Check 'ui: wheel serves i18n.js and guide PNG' (($i18nResp.StatusCode -eq 200) -and ($imgResp.StatusCode -eq 200) -and ($imgResp.RawContentLength -gt 100))
+
     $uiPid = [int](Get-Content -LiteralPath (Join-Path $root 'ui.json') -Raw | ConvertFrom-Json).pid
     Check 'ui: server stays up' ((Get-Process -Id $uiPid -ErrorAction SilentlyContinue) -ne $null)
 

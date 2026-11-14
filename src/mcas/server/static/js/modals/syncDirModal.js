@@ -6,6 +6,7 @@ import { withBusy } from '../utils/busy.js';
 import { summarizeBatchToast, toast } from '../components/toast.js';
 import { renderStatus } from '../render/status.js';
 import { fetchSessions, fetchStatus } from '../actions.js';
+import { t } from '../i18n.js';
 
 export function updateSyncDirHint() {
   const selVal = $('sdCwdSelect').value;
@@ -15,16 +16,17 @@ export function updateSyncDirHint() {
   const ws = workspaces.find((w) => normalizePathKey(w.cwd) === normalizePathKey(cwd));
   if (ws && ws.counts) {
     const cnt = ws.counts[fromP] ?? 0;
-    $('sdCountHint').textContent = `${cnt} ${providerLabel(fromP)} session(s) detected in this folder -> will copy to ${providerLabel(toP)}.`;
+    $('sdCountHint').textContent = t('syncDir.hintDetected', { n: cnt, from: providerLabel(fromP), to: providerLabel(toP) });
   } else {
     $('sdCountHint').textContent = cwd
-      ? `Will copy all top-level ${providerLabel(fromP)} sessions in "${cwd}" to ${providerLabel(toP)}.`
-      : 'Choose a workspace folder to sync.';
+      ? t('syncDir.hintCustom', { from: providerLabel(fromP), cwd, to: providerLabel(toP) })
+      : t('syncDir.hintChoose');
   }
 }
 
-export function openSyncDirModal() {
+export function renderSyncDirWorkspaceOptions() {
   const sel = $('sdCwdSelect');
+  const prev = sel.value;
   sel.replaceChildren();
   const workspaces = (state.status && state.status.workspaces) || [];
   let hasPreselected = false;
@@ -34,16 +36,23 @@ export function openSyncDirModal() {
       value: w.cwd,
       textContent: `${w.cwd} (agy ${w.counts?.agy ?? 0} / claude ${w.counts?.claude ?? 0})`,
     });
-    if (state.cwdFilter && normalizePathKey(w.cwd) === normalizePathKey(state.cwdFilter)) {
+    if (prev ? normalizePathKey(w.cwd) === normalizePathKey(prev) : (state.cwdFilter && normalizePathKey(w.cwd) === normalizePathKey(state.cwdFilter))) {
       opt.selected = true;
       hasPreselected = true;
     }
     sel.append(opt);
   }
-  const customOpt = el('option', { value: '__custom__', textContent: 'Custom folder path...' });
-  if (state.cwdFilter && !hasPreselected) customOpt.selected = true;
-  if (!workspaces.length) customOpt.selected = true;
+  const customOpt = el('option', { value: '__custom__', textContent: t('filter.customFolderOpt') });
+  if (prev === '__custom__' || (!prev && state.cwdFilter && !hasPreselected) || !workspaces.length) {
+    customOpt.selected = true;
+  }
   sel.append(customOpt);
+}
+
+export function openSyncDirModal() {
+  const sel = $('sdCwdSelect');
+  sel.value = '';
+  renderSyncDirWorkspaceOptions();
 
   if (sel.value === '__custom__') {
     $('sdCwdCustom').hidden = false;
@@ -75,7 +84,7 @@ export function initSyncDirModal() {
     const selVal = $('sdCwdSelect').value;
     const cwd = (selVal === '__custom__' ? $('sdCwdCustom').value : selVal).trim();
     if (!cwd) {
-      toast('Please enter or select a workspace folder.', 'err');
+      toast(t('syncDir.errNoFolder'), 'err');
       return;
     }
     const [fromProvider, toProvider] = $('sdDirection').value.split('->');
@@ -94,7 +103,7 @@ export function initSyncDirModal() {
           overwrite,
           includeThinking,
         });
-        summarizeBatchToast(r, `Synced ${fromProvider} -> ${toProvider} for ${cwd}`);
+        summarizeBatchToast(r, t('syncDir.doneFallback', { from: fromProvider, to: toProvider, cwd }));
         if (r.status) renderStatus(r.status);
         else await fetchStatus();
         await fetchSessions();

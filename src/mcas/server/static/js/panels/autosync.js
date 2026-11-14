@@ -11,6 +11,7 @@ import {
 import { copyText, toast } from '../components/toast.js';
 import { renderStatus } from '../render/status.js';
 import { fetchSessions, fetchStatus } from '../actions.js';
+import { t } from '../i18n.js';
 
 export function markAutosyncDirty() {
   state.autosyncDirty = true;
@@ -38,8 +39,8 @@ export function collectAutosyncPayload(runNow = false) {
 export function renderWatchedFolders(workspaces) {
   const scope = $('asScope').value;
   $('watchedTitle').textContent = scope === 'watched'
-    ? 'Watched folders (active scope)'
-    : 'Watched folders (used when scope is "Selected folders only")';
+    ? t('as.watchedActive')
+    : t('as.watchedInactive');
   $('watchedBox').style.opacity = scope === 'watched' ? '1' : '.72';
 
   const host = $('watchedList');
@@ -64,7 +65,7 @@ export function renderWatchedFolders(workspaces) {
   }
 
   if (!allPaths.length) {
-    host.append(el('div', { className: 'brand-sub', textContent: 'No workspaces detected yet. Add a folder path below.' }));
+    host.append(el('div', { className: 'brand-sub', textContent: t('as.noWorkspaces') }));
     return;
   }
 
@@ -90,12 +91,12 @@ export function renderWatchedFolders(workspaces) {
     );
     const row = el('div', { className: 'watched-item' }, label);
     if (ws) {
-      row.append(el('span', { className: 'brand-sub', textContent: `${ws.total ?? 0} sessions` }));
+      row.append(el('span', { className: 'brand-sub', textContent: t('as.sessionsCount', { n: ws.total ?? 0 }) }));
     } else {
       row.append(el('button', {
         type: 'button',
         className: 'sm ghost',
-        textContent: 'Remove',
+        textContent: t('as.removeFolder'),
         onclick: () => {
           state.watchedDraft = state.watchedDraft.filter((p) => normalizePathKey(p) !== key);
           markAutosyncDirty();
@@ -110,11 +111,13 @@ export function renderWatchedFolders(workspaces) {
 export function renderHistory(history) {
   // Backend returns newest-first (capped at 100)
   const list = Array.isArray(history) ? history : [];
-  $('historyCount').textContent = `${list.length} ${list.length === 1 ? 'entry' : 'entries'}`;
+  $('historyCount').textContent = list.length === 1
+    ? t('as.entriesOne', { n: list.length })
+    : t('as.entriesMany', { n: list.length });
   const tbody = $('historyBody');
   tbody.replaceChildren();
   if (!list.length) {
-    tbody.append(el('tr', {}, el('td', { colSpan: 5, className: 'empty-state', textContent: 'No sync operations recorded yet.' })));
+    tbody.append(el('tr', {}, el('td', { colSpan: 5, className: 'empty-state', textContent: t('as.noOps') })));
     return;
   }
 
@@ -140,8 +143,8 @@ export function renderHistory(history) {
     );
 
     const sessionCell = el('td', {},
-      el('div', { className: 'act-title', textContent: h.title || sourceId || '(untitled)' }),
-      el('div', { className: 'act-sub mono', textContent: h.cwd || '(no workspace)' })
+      el('div', { className: 'act-title', textContent: h.title || sourceId || t('row.untitled') }),
+      el('div', { className: 'act-sub mono', textContent: h.cwd || t('row.noWorkspace') })
     );
 
     const statusCell = el('td', {},
@@ -157,7 +160,7 @@ export function renderHistory(history) {
       const btn = el('button', {
         type: 'button',
         className: 'sm',
-        textContent: 'Copy cmd',
+        textContent: t('drawer.copyCmd'),
         title: resumeCmd,
         style: { marginTop: '3px' },
         onclick: () => copyText(resumeCmd, btn),
@@ -186,29 +189,34 @@ export function renderAutosyncStatus(as, workspaces) {
   const dot = $('autosyncDot');
   dot.className = 'dot' + (running ? ' pulse' : enabled ? ' ok' : '');
   $('autosyncPillText').textContent = running
-    ? 'Auto-Sync: syncing...'
+    ? t('as.pillSyncing')
     : enabled
-      ? `Auto-Sync: ON (${as.intervalSec || 30}s)`
-      : 'Auto-Sync: OFF';
+      ? t('as.pillOn', { s: as.intervalSec || 30 })
+      : t('as.pillOff');
 
   const tabBadge = $('tabAutosyncBadge');
-  tabBadge.textContent = running ? 'SYNC' : enabled ? 'ON' : 'OFF';
+  tabBadge.textContent = running ? t('tabs.badgeSync') : enabled ? t('tabs.badgeOn') : t('tabs.badgeOff');
   tabBadge.className = 'tab-badge' + (enabled ? ' on' : '');
 
   const statusBadge = $('asStatusBadge');
-  statusBadge.textContent = running ? 'Running now' : enabled ? 'Enabled' : 'Disabled';
+  statusBadge.textContent = running ? t('as.runningNow') : enabled ? t('as.enabled') : t('as.disabled');
   statusBadge.className = 'status-pill' + (running ? ' warn' : enabled ? ' ok' : '');
 
   $('asLastRun').textContent = as.lastRunAt
-    ? `Last run: ${formatRelative(as.lastRunAt, as.lastRunAt)} (${formatLocalDate(as.lastRunAt, as.lastRunAt)})`
-    : 'Last run: never';
+    ? t('as.lastRunAt', { rel: formatRelative(as.lastRunAt, as.lastRunAt), abs: formatLocalDate(as.lastRunAt, as.lastRunAt) })
+    : t('as.lastRunNever');
 
   const errBox = $('asErrorBanner');
   if (as.lastError) {
-    errBox.textContent = `Last auto-sync error: ${as.lastError}`;
+    errBox.textContent = t('as.lastErr', { err: as.lastError });
     errBox.hidden = false;
   } else {
     errBox.hidden = true;
+  }
+
+  const ivSel = $('asInterval');
+  for (const opt of ivSel.options) {
+    if (opt.value) opt.textContent = t('as.everySec', { s: opt.value });
   }
 
   // Only populate form inputs when user does not have unsaved edits
@@ -216,9 +224,8 @@ export function renderAutosyncStatus(as, workspaces) {
     $('asEnabled').checked = enabled;
     $('asDirection').value = as.direction || 'both';
     const iv = String(as.intervalSec || 30);
-    const ivSel = $('asInterval');
     if (![...ivSel.options].some((o) => o.value === iv)) {
-      ivSel.append(el('option', { value: iv, textContent: `Every ${iv}s` }));
+      ivSel.append(el('option', { value: iv, textContent: t('as.everySec', { s: iv }) }));
     }
     ivSel.value = iv;
     $('asScope').value = as.scope || 'all';
@@ -236,7 +243,7 @@ export async function saveAutosync(runNow = false) {
       const payload = runNow && !state.autosyncDirty ? { runNow: true } : collectAutosyncPayload(runNow);
       const r = await api('autosync', payload);
       clearAutosyncDirty();
-      toast(r.message || (runNow ? 'Sync completed.' : 'Auto-Sync settings saved.'), 'ok');
+      toast(r.message || (runNow ? t('as.syncDoneToast') : t('as.savedToast')), 'ok');
       if (r.status) {
         renderStatus(r.status);
       } else {

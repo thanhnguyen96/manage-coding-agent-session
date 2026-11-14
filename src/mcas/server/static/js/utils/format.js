@@ -1,3 +1,5 @@
+import { getLang, t } from '../i18n.js';
+
 export const PROVIDER_ORDER = ['claude', 'agy'];
 
 export function parseDateVal(v) {
@@ -11,17 +13,17 @@ export function formatRelative(v, fallback) {
   const d = parseDateVal(v);
   if (!d) return fallback || '';
   const sec = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (sec < 45) return 'just now';
-  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
-  if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
-  if (sec < 86400 * 7) return Math.floor(sec / 86400) + 'd ago';
-  return d.toLocaleDateString();
+  if (sec < 45) return t('time.justNow');
+  if (sec < 3600) return t('time.mAgo', { n: Math.floor(sec / 60) });
+  if (sec < 86400) return t('time.hAgo', { n: Math.floor(sec / 3600) });
+  if (sec < 86400 * 7) return t('time.dAgo', { n: Math.floor(sec / 86400) });
+  return d.toLocaleDateString(getLang() === 'vi' ? 'vi-VN' : undefined);
 }
 
 export function formatLocalDate(v, fallback = '') {
   const d = parseDateVal(v);
   if (!d) return fallback;
-  return d.toLocaleString();
+  return d.toLocaleString(getLang() === 'vi' ? 'vi-VN' : undefined);
 }
 
 export function providerLabel(id) {
@@ -87,10 +89,10 @@ export function formatSyncedInfo(syncedTo) {
         tips.push(parts.join(' '));
       }
     }
-    if (names.length) return { text: `Synced \u2194 ${[...new Set(names)].join(', ')}`, title: tips.join('\n') };
+    if (names.length) return { text: t('sync.label', { names: [...new Set(names)].join(', ') }), title: tips.join('\n') };
   }
   if (typeof syncedTo === 'string' && syncedTo.trim()) {
-    return { text: `Synced \u2194 ${syncedTo}`, title: syncedTo };
+    return { text: t('sync.label', { names: syncedTo }), title: syncedTo };
   }
   return { text: '', title: '' };
 }

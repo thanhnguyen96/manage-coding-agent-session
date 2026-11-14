@@ -3,7 +3,7 @@ import { api } from './api.js';
 import { $, el } from './utils/dom.js';
 import { groupKey } from './utils/format.js';
 import { withBusy } from './utils/busy.js';
-import { initTheme, toggleTheme } from './components/theme.js';
+import { initTheme, toggleTheme, updateThemeButton } from './components/theme.js';
 import { toast } from './components/toast.js';
 import { askConfirm } from './components/confirmModal.js';
 import { renderStatus, switchTab } from './render/status.js';
@@ -22,14 +22,68 @@ import {
   startPolling,
   stopPolling,
 } from './actions.js';
-import { closePreview, initDrawer } from './drawer.js';
-import { initTrimModal } from './modals/trimModal.js';
-import { initCleanupModal } from './modals/cleanupModal.js';
-import { initSyncDirModal } from './modals/syncDirModal.js';
+import { closePreview, initDrawer, renderDrawerContent } from './drawer.js';
+import { initTrimModal, renderTrimModalLabel } from './modals/trimModal.js';
+import { initCleanupModal, renderStorageSummaryGrid } from './modals/cleanupModal.js';
+import {
+  initSyncDirModal,
+  renderSyncDirWorkspaceOptions,
+  updateSyncDirHint,
+} from './modals/syncDirModal.js';
+import {
+  closeHelpModal,
+  initHelpModal,
+  openHelpModal,
+  renderHelpModal,
+} from './modals/helpModal.js';
 import { initAutosyncPanel } from './panels/autosync.js';
+import { initI18n, onLangChange, setLang, t } from './i18n.js';
 
-// Theme init
+// Theme & i18n init
 initTheme();
+initI18n();
+updateThemeButton();
+
+// Language dropdown
+const closeLangMenu = () => {
+  const menu = $('langMenu');
+  const btn = $('langBtn');
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+};
+
+$('langBtn').onclick = (e) => {
+  e.stopPropagation();
+  const menu = $('langMenu');
+  const willOpen = menu.hidden;
+  closeProviderDropdown(true);
+  menu.hidden = !willOpen;
+  $('langBtn').setAttribute('aria-expanded', String(willOpen));
+};
+
+document.querySelectorAll('#langMenu .lang-opt').forEach((opt) => {
+  opt.onclick = (e) => {
+    e.stopPropagation();
+    const lang = opt.getAttribute('data-lang');
+    closeLangMenu();
+    setLang(lang);
+  };
+});
+
+onLangChange(() => {
+  updateThemeButton();
+  if (state.status) renderStatus(state.status);
+  else $('openSyncDirLabel').textContent = state.cwdFilter ? t('filter.syncThisFolder') : t('filter.syncFolder');
+  renderSessions();
+  if (!$('previewBackdrop').hidden && state.drawerSession) renderDrawerContent(state.drawerSession);
+  if (!$('trimModal').hidden) renderTrimModalLabel();
+  if (!$('cleanupModal').hidden) renderStorageSummaryGrid();
+  if (!$('syncDirModal').hidden) {
+    renderSyncDirWorkspaceOptions();
+    updateSyncDirHint();
+  }
+  if (!$('helpModal').hidden) renderHelpModal();
+});
 
 // Topbar & navigation events
 $('themeBtn').onclick = toggleTheme;
@@ -45,7 +99,7 @@ $('autostartToggle').onchange = async (e) => {
   await withBusy(async () => {
     try {
       const r = await api('autostart', { on: want });
-      toast(r.message || (want ? 'Start with Windows enabled.' : 'Start with Windows disabled.'), 'ok');
+      toast(r.message || (want ? t('top.autostartEnabled') : t('top.autostartDisabled')), 'ok');
       if (r.status) renderStatus(r.status);
       else if (typeof r.autostart === 'boolean') $('autostartToggle').checked = r.autostart;
     } catch (err) {
@@ -57,9 +111,9 @@ $('autostartToggle').onchange = async (e) => {
 
 $('quitBtn').onclick = async () => {
   const ok = await askConfirm(
-    'Stop mcas server',
-    'Stop the mcas web UI server, background Auto-Sync, and tray icon? Run "mcas ui" again to reopen.',
-    'Stop server',
+    t('quit.title'),
+    t('quit.msg'),
+    t('top.stopServer'),
     true
   );
   if (!ok) return;
@@ -69,8 +123,8 @@ $('quitBtn').onclick = async () => {
   document.body.replaceChildren(
     el('main', { className: 'app' },
       el('div', { className: 'card', style: { padding: '24px' } },
-        el('h2', { textContent: 'mcas server stopped', style: { marginTop: '0' } }),
-        el('p', { className: 'brand-sub', textContent: 'The web server and tray icon have shut down. You can close this tab or run "mcas ui" to start again.' })
+        el('h2', { textContent: t('quit.stoppedTitle'), style: { marginTop: '0' } }),
+        el('p', { className: 'brand-sub', textContent: t('quit.stoppedDesc') })
       )
     )
   );
@@ -104,7 +158,7 @@ $('cwdCustomInput').oninput = (e) => {
     if (v === state.cwdFilter) return;
     state.cwdFilter = v;
     state.limit = 200;
-    $('openSyncDirLabel').textContent = state.cwdFilter ? 'Sync this folder \u2192 ...' : 'Sync folder \u2192 ...';
+    $('openSyncDirLabel').textContent = state.cwdFilter ? t('filter.syncThisFolder') : t('filter.syncFolder');
     renderActiveFilters();
     fetchSessions({ silent: false });
   }, 350);
@@ -169,6 +223,7 @@ $('bulkDeleteBtn').onclick = confirmDeleteSelected;
 initTrimModal();
 initCleanupModal();
 initSyncDirModal();
+initHelpModal();
 initDrawer();
 initAutosyncPanel();
 
@@ -177,12 +232,30 @@ document.addEventListener('click', (e) => {
   if (state.openDropdownKey && !e.target.closest('[data-dropdown-host="true"]')) {
     closeProviderDropdown(true);
   }
+  const langMenu = $('langMenu');
+  if (langMenu && !langMenu.hidden && !e.target.closest('#langWrap')) {
+    closeLangMenu();
+  }
 });
 
 document.addEventListener('keydown', (e) => {
+  if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const tgt = e.target;
+    const tag = tgt && tgt.tagName ? tgt.tagName.toLowerCase() : '';
+    const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select' || !!(tgt && tgt.isContentEditable);
+    if (!isTyping && $('confirmModal').hidden) {
+      e.preventDefault();
+      closeLangMenu();
+      openHelpModal();
+      return;
+    }
+  }
   if (e.key === 'Escape') {
+    const langMenu = $('langMenu');
+    if (langMenu && !langMenu.hidden) { closeLangMenu(); return; }
     if (!$('confirmModal').hidden) return;
     if (state.openDropdownKey) { closeProviderDropdown(true); return; }
+    if (!$('helpModal').hidden) { closeHelpModal(); return; }
     if (!$('trimModal').hidden) { $('trimModal').hidden = true; return; }
     if (!$('cleanupModal').hidden) { $('cleanupModal').hidden = true; return; }
     if (!$('syncDirModal').hidden) { $('syncDirModal').hidden = true; return; }

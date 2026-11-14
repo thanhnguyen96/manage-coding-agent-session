@@ -1,5 +1,6 @@
 import { $, el } from '../utils/dom.js';
 import { formatResumeCmd } from '../utils/format.js';
+import { t } from '../i18n.js';
 
 export async function copyText(text, btn) {
   let ok = false;
@@ -20,10 +21,10 @@ export async function copyText(text, btn) {
   }
   if (ok && btn) {
     const prev = btn.textContent;
-    btn.textContent = 'Copied';
+    btn.textContent = t('toast.copied');
     setTimeout(() => { if (btn.isConnected) btn.textContent = prev; }, 1400);
   }
-  if (!ok) toast('Could not copy to clipboard', 'err');
+  if (!ok) toast(t('toast.copyFailed'), 'err');
   return ok;
 }
 
@@ -35,7 +36,7 @@ export function toast(message, kind = 'info', commands = []) {
     type: 'button',
     className: 'sm ghost',
     textContent: '\u00d7',
-    title: 'Dismiss',
+    title: t('toast.dismiss'),
     style: { padding: '0 6px', border: '0' },
     onclick: () => box.remove(),
   });
@@ -46,7 +47,7 @@ export function toast(message, kind = 'info', commands = []) {
     const copyBtn = el('button', {
       type: 'button',
       className: 'sm',
-      textContent: 'Copy',
+      textContent: t('toast.copy'),
       onclick: () => copyText(item.cmd, copyBtn),
     });
     const row = el('div', { className: 'toast-cmd' },
@@ -57,7 +58,7 @@ export function toast(message, kind = 'info', commands = []) {
       const copyFullBtn = el('button', {
         type: 'button',
         className: 'sm ghost',
-        textContent: 'cd + cmd',
+        textContent: t('toast.cdAndCmd'),
         title: `Copy cd "${item.dir}" && ${item.cmd}`,
         onclick: () => copyText(`cd "${item.dir}" ; ${item.cmd}`, copyFullBtn),
       });
@@ -89,6 +90,6 @@ export function summarizeBatchToast(r, fallbackMsg) {
   toast(r.message || fallbackMsg, failed.length && !cmds.length ? 'err' : 'ok', cmds);
   if (failed.length && cmds.length) {
     const firstErr = failed[0].error || failed[0].message || 'failed';
-    toast(`${failed.length} item(s) failed: ${firstErr}`, 'err');
+    toast(t('toast.itemsFailed', { n: failed.length, err: firstErr }), 'err');
   }
 }

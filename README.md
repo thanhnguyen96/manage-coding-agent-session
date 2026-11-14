@@ -1,8 +1,8 @@
 # manage-coding-agent-session (`mcas`)
 
-Browse, inspect, copy, and automatically sync coding-agent conversation sessions across **Antigravity CLI (`agy`)** and **Claude Code CLI (`claude`)** on Windows — via CLI, Web GUI, and Windows system tray.
+Browse, inspect, copy, and automatically sync coding-agent conversation sessions across **Antigravity CLI (`agy`)** and **Claude Code CLI (`claude`)** — via CLI, Web GUI, and Windows system tray.
 
-> **Unofficial.** Not affiliated with Google or Anthropic. Zero third-party dependencies (Python 3 standard library + built-in Windows PowerShell 5.1).
+> **Unofficial.** Not affiliated with Google or Anthropic. Zero third-party runtime dependencies (Python 3.10+ standard library + built-in Windows PowerShell 5.1 for the Windows tray).
 
 ## Supported Providers
 
@@ -15,11 +15,11 @@ Browse, inspect, copy, and automatically sync coding-agent conversation sessions
 
 ## Requirements
 
-- Windows 10 / 11 with PowerShell 5.1+ (built in)
-- Python 3.8+ (`python` or `py -3` on `PATH`)
-- No admin rights, no Node.js, no `pip install`
+- Windows 10 / 11 with PowerShell 5.1+ (built in) for the system tray & Windows shortcuts
+- [`uv`](https://docs.astral.sh/uv/) (auto-installed by `install.ps1` if missing, or `winget install astral-sh.uv`)
+- Python 3.10+ (managed automatically by `uv` if not already installed)
 
-*(On macOS/Linux, `mcas.py` can also be run directly with `python3 mcas.py ...`.)*
+*(On macOS/Linux, install with `uv tool install git+https://github.com/thanhnguyen96/manage-coding-agent-session` or run from a checkout with `uv run mcas ...`.)*
 
 ## Install
 
@@ -27,9 +27,15 @@ Browse, inspect, copy, and automatically sync coding-agent conversation sessions
 irm https://raw.githubusercontent.com/thanhnguyen96/manage-coding-agent-session/HEAD/install.ps1 | iex
 ```
 
-Pin a specific git tag, branch, or commit with `$env:MCAS_REF = 'v0.1.0'` before running.
+Or install directly with `uv`:
 
-Prefer to inspect first?
+```powershell
+uv tool install git+https://github.com/thanhnguyen96/manage-coding-agent-session
+```
+
+Pin a specific git tag, branch, or commit with `$env:MCAS_REF = 'v0.2.0'` before running `install.ps1`.
+
+Prefer to inspect `install.ps1` first?
 
 ```powershell
 irm https://raw.githubusercontent.com/thanhnguyen96/manage-coding-agent-session/HEAD/install.ps1 -OutFile install.ps1
@@ -37,14 +43,14 @@ notepad install.ps1
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-Open a new terminal afterwards so `mcas` (and `manage-coding-agent-session`) is on your `PATH`.
+Open a new terminal afterwards so `mcas` is on your `PATH`.
 
 <details>
 <summary>Environment variables (installation & overrides)</summary>
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MCAS_ROOT` | `%LOCALAPPDATA%\mcas` | Install folder (`app\`, `bin\`, `ui.json`, `sync_state.json`) |
+| `MCAS_ROOT` | `%LOCALAPPDATA%\mcas` | Data & runtime state directory (`ui.json`, `sync_state.json`) |
 | `MCAS_PORT` | `47831` | Default Web UI port |
 | `MCAS_REF` | `HEAD` | Git ref used by `install.ps1` and `mcas update` |
 | `MCAS_SOURCE` | *(unset)* | Local folder path to install/update from instead of GitHub |
@@ -69,9 +75,9 @@ The Web UI binds strictly to `127.0.0.1`, verifies `Host` headers, and authentic
 
 **Web UI features:**
 - **Conversations, Provider Sync & Cleanup**: Synced conversations across providers merge into a single row with a tag like `(claude, agy)`. Use the **Providers** checkbox dropdown on any row to add (`+ Add`), remove (`- Remove`), or untick all checkboxes & click **Apply** (with a delete confirmation dialog) to delete completely; sort by newest, largest size, or turn count; **Lighten** bulky conversations in-place (keep newest 50%/N turns, truncate tool outputs, purge heavy brain/subagent sidecars); bulk **Copy Selected** / **Delete Selected**; 1-click **Sync folder** modal; **Clean Up** storage modal (dry-run preview, orphans, empty/subagent/old/large sessions, SQLite `VACUUM`); and slide-over **Preview** drawer with provider tabs, size breakdown, collapsible `<thought>` blocks, tool calls/results, and copyable `Resume Dir` / `Resume Cmd`.
-- **Auto-Sync & Activity**: Enable/disable background bidirectional sync, configure direction, check interval (`10s`–`300s`), scope (`All workspaces` vs `Selected folders only`), `<thought>` folding, trigger **Sync Now**, and review recent sync activity with target resume commands.
+- **Auto-Sync & Activity**: Enable/disable background bidirectional sync, configure direction, check interval (`10s`-`300s`), scope (`All workspaces` vs `Selected folders only`), `<thought>` folding, trigger **Sync Now**, and review recent sync activity with target resume commands.
 
-**System Tray icon** (while the server runs):
+**System Tray icon** (Windows, while the server runs):
 - **Left-click**: Open Web UI in your browser
 - **Right-click**:
   - **Open mcas**
@@ -116,9 +122,11 @@ mcas autosync off
 # Lifecycle
 mcas autostart on        # start tray icon + Auto-Sync automatically on Windows sign-in
 mcas autostart off
-mcas update              # update to latest version (preserves sync_state.json)
-mcas uninstall           # remove app/shims/shortcuts (keeps sync_state.json if present)
+mcas update              # update via uv (preserves sync_state.json)
+mcas uninstall           # remove tool/shortcuts/ui.json (keeps sync_state.json if present)
 mcas uninstall --purge   # remove everything including sync_state.json
+mcas version             # print installed version
+mcas help                # show help
 ```
 
 ## How Loop-Free Auto-Sync Works
@@ -136,17 +144,55 @@ Auto-Sync maintains a pairing ledger in `%LOCALAPPDATA%\mcas\sync_state.json`:
 - **Claude workspace directory matching**: `claude --resume <id>` only looks inside `~/.claude/projects/<slug_of_current_cwd>/`. When targeting a workspace different from your current directory, `mcas` writes to the target slug and prints both `Resume Dir` (`cd "<target>"`) and `claude --resume <id>`.
 - **Thinking blocks**: By default, raw thinking is not injected into visible assistant text. Pass `--include-thinking` (or enable **Include `<thought>`**) to fold reasoning into `<thought>...</thought>` assistant text so it remains visible upon resume.
 
+## Project Layout
+
+```text
+pyproject.toml               # uv package metadata, CLI entry point (mcas.cli:main), ruff/pytest config
+install.ps1                  # Windows installer (installs uv if needed + uv tool install + Start Menu shortcut)
+src/mcas/
+  __init__.py                # exports __version__
+  __main__.py                # python -m mcas entry point
+  constants.py, errors.py, config.py, models.py, cache.py
+  util/                      # protobuf codec, path/slug conversion, timefmt, text helpers, atomic fsio
+  providers/
+    base.py, __init__.py     # AgentProvider ABC, FutureProvider, provider registry
+    agy/                     # schema, pb_builders, storage, provider
+    claude/                  # storage, convert, provider
+  sync/                      # state.py (sync_state.json), copy.py, autosync.py
+  services/                  # query.py, delete.py, trim.py, clean.py
+  server/
+    app.py, routes.py, static_files.py
+    static/                  # index.html, css/*, js/* (vanilla ES modules, zero build step)
+  cli/
+    __init__.py, parser.py
+    commands/                # sessions.py, maintenance.py, app_cmds.py
+  desktop/
+    autostart.py             # Windows Startup shortcut (test_autostart / set_autostart)
+    launcher.py              # open_ui / stop_ui / update / uninstall
+    tray.ps1                 # Windows PowerShell WinForms system tray host
+tests/                       # pytest unit/integration/API suite, CDP browser E2E, Windows sandbox E2E
+```
+
 ## Development & Sandbox Testing
 
-Run the isolated end-to-end sandbox suite (never touches your real `~/.claude`, `~/.gemini/antigravity-cli`, `%LOCALAPPDATA%\mcas`, or User `PATH`):
-
 ```powershell
-# Install from local checkout
+# Sync dev environment (Python + pytest + ruff)
+uv sync
+
+# Run CLI from source
+uv run mcas --help
+uv run mcas list
+
+# Run tests & linter (all tests run in isolated temp sandboxes)
+uv run pytest
+uv run ruff check src tests
+
+# Install from local checkout into uv tool environment
 $env:MCAS_SOURCE = (Get-Location).Path
 .\install.ps1
 
-# Run full sandbox verification (seed, install, CLI, Web API, auth 403, loop-free autosync, update, uninstall)
+# Run full Windows install E2E in an isolated temp sandbox
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\sandbox.ps1
 ```
 
-> **Note for contributors:** Keep all `.ps1` files strictly ASCII-only (`[0x00..0x7F]`). Windows PowerShell 5.1 reads BOM-less `.ps1` files using the system ANSI code page.
+> **Note for contributors:** Keep all `.ps1` files strictly ASCII-only (`[0x00..0x7F]`) with CRLF line endings. Windows PowerShell 5.1 reads BOM-less `.ps1` files using the system ANSI code page.

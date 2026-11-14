@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcas &mdash; Manage Coding Agent Session</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23c4633f'/%3E%3Cpath d='M9 12h10m-3-3 3 3-3 3M23 20H13m3-3-3 3 3 3' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/css/tokens.css">
+<link rel="stylesheet" href="/static/css/base.css">
+<link rel="stylesheet" href="/static/css/layout.css">
+<link rel="stylesheet" href="/static/css/sessions.css">
+<link rel="stylesheet" href="/static/css/overlays.css">
+</head>
+<body>
+<div class="app" id="appRoot">
+  <header class="topbar">
+    <div class="brand-wrap">
+      <div class="brand-row">
+        <span class="brand-logo" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 9h11l-3-3M19 15H8l3 3"/>
+          </svg>
+        </span>
+        <h1>mcas</h1>
+        <span class="brand-sub">Manage Coding Agent Session</span>
+        <span class="ver-pill" id="versionTag">connecting...</span>
+      </div>
+      <div class="provider-chips" id="providerChips"></div>
+    </div>
+
+    <div class="top-actions">
+      <button type="button" class="autosync-pill" id="autosyncPill" title="Open Auto-Sync settings &amp; activity">
+        <span class="dot" id="autosyncDot"></span>
+        <span id="autosyncPillText">Auto-Sync: --</span>
+      </button>
+      <label class="check" title="Launch mcas tray icon automatically on Windows sign-in">
+        <input type="checkbox" id="autostartToggle">
+        <span>Start with Windows</span>
+      </label>
+      <button type="button" class="icon-btn" id="themeBtn" title="Toggle light/dark theme" aria-label="Toggle light/dark theme"></button>
+      <button type="button" id="refreshBtn" title="Refresh status and sessions">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
+        </svg>
+        <span>Refresh</span>
+      </button>
+      <button type="button" id="quitBtn" class="danger" title="Stop the mcas server and remove the tray icon">Stop server</button>
+    </div>
+  </header>
+
+  <div class="card banner err" id="connBanner" hidden>
+    <span id="connBannerText">Connection lost.</span>
+    <button type="button" class="sm" id="reconnectBtn">Reconnect</button>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Primary views">
+    <button type="button" role="tab" class="tab-btn active" id="tabBtnSessions" aria-selected="true">
+      <span>Sessions &amp; Copy/Sync</span>
+      <span class="tab-badge" id="tabSessionsCount">0</span>
+    </button>
+    <button type="button" role="tab" class="tab-btn" id="tabBtnAutosync" aria-selected="false">
+      <span>Auto-Sync &amp; Activity</span>
+      <span class="tab-badge" id="tabAutosyncBadge">OFF</span>
+    </button>
+  </nav>
+
+  <!-- TAB 1: Sessions & Copy/Sync -->
+  <section id="panelSessions" role="tabpanel" aria-labelledby="tabBtnSessions">
+    <div class="card filter-card">
+      <div class="filter-row">
+        <div class="seg" id="providerPills" role="group" aria-label="Filter by provider"></div>
+
+        <div class="folder-group">
+          <select id="cwdSelect" aria-label="Filter by workspace folder">
+            <option value="">All folders</option>
+          </select>
+          <div class="custom-cwd" id="cwdCustomWrap" hidden>
+            <input type="text" id="cwdCustomInput" placeholder="Enter folder path (e.g. C:\repo)" autocomplete="off">
+            <button type="button" class="sm" id="cwdCustomApply">Apply</button>
+            <button type="button" class="sm ghost" id="cwdCustomClear" title="Clear custom folder">Clear</button>
+          </div>
+        </div>
+
+        <div class="search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input type="search" id="searchInput" placeholder="Search title, preview, ID, folder..." autocomplete="off">
+          <button type="button" class="search-clear" id="searchClear" title="Clear search" hidden>&times;</button>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <label class="check">
+          <input type="checkbox" id="includeAll">
+          <span>Include subagents / IDE / empty</span>
+        </label>
+        <select id="sortSelect" aria-label="Sort conversations" style="width:auto">
+          <option value="updated_desc">Sort: Newest</option>
+          <option value="size_desc">Sort: Largest size</option>
+          <option value="turns_desc">Sort: Most turns</option>
+          <option value="updated_asc">Sort: Oldest</option>
+        </select>
+        <div class="spacer"></div>
+        <button type="button" id="openCleanupBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          </svg>
+          <span>Clean Up...</span>
+        </button>
+        <button type="button" id="openSyncDirBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>
+          </svg>
+          <span id="openSyncDirLabel">Sync folder &rarr; ...</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card sel-bar" id="selectionBar" hidden>
+      <span class="sel-count" id="selCount">0 selected</span>
+      <button type="button" class="sm ghost" id="clearSelBtn">Clear</button>
+      <div class="sel-controls">
+        <label class="check">
+          <span>To</span>
+          <select id="bulkTarget" aria-label="Target provider for selected sessions">
+            <option value="claude">Claude Code (claude)</option>
+            <option value="agy">Antigravity (agy)</option>
+          </select>
+        </label>
+        <input type="text" id="bulkTargetCwd" placeholder="Target folder override (blank = keep session folder)" autocomplete="off">
+        <label class="check"><input type="checkbox" id="bulkThinking"><span>Include &lt;thought&gt;</span></label>
+        <label class="check"><input type="checkbox" id="bulkNewId"><span>Force new UUID</span></label>
+        <label class="check"><input type="checkbox" id="bulkOverwrite"><span>Overwrite</span></label>
+      </div>
+      <button type="button" class="primary" id="bulkCopyBtn">Copy Selected</button>
+      <button type="button" class="danger" id="bulkDeleteBtn">Delete Selected</button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="list-head">
+        <div class="list-head-left">
+          <label class="check">
+            <input type="checkbox" id="selectAll">
+            <span>Select all visible</span>
+          </label>
+          <span class="brand-sub" id="listSummary">Loading sessions...</span>
+        </div>
+        <div class="active-filters" id="activeFilters"></div>
+      </div>
+
+      <ul class="session-list" id="sessionList">
+        <li class="empty-state">Loading sessions...</li>
+      </ul>
+
+      <div class="list-foot" id="listFoot" hidden>
+        <span id="listFootText"></span>
+        <button type="button" class="sm" id="loadMoreBtn">Load more</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 2: Auto-Sync & Activity -->
+  <section id="panelAutosync" role="tabpanel" aria-labelledby="tabBtnAutosync" hidden>
+    <div class="card">
+      <div class="section-head">
+        <div class="brand-row">
+          <h2>Background Auto-Sync</h2>
+          <span class="status-pill" id="asStatusBadge">Disabled</span>
+        </div>
+        <div class="brand-row">
+          <span class="brand-sub" id="asLastRun">Last run: never</span>
+        </div>
+      </div>
+
+      <div class="section-body">
+        <div class="banner err" id="asErrorBanner" hidden></div>
+
+        <div style="margin-bottom:14px">
+          <label class="check" style="font-weight:600">
+            <input type="checkbox" id="asEnabled">
+            <span>Enable automatic background sync</span>
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label class="lbl" for="asDirection">Sync Direction</label>
+            <select id="asDirection">
+              <option value="both">Bidirectional (agy &harr; claude)</option>
+              <option value="agy2claude">Antigravity &rarr; Claude Code only</option>
+              <option value="claude2agy">Claude Code &rarr; Antigravity only</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="lbl" for="asInterval">Check Interval</label>
+            <select id="asInterval">
+              <option value="10">Every 10s</option>
+              <option value="30">Every 30s</option>
+              <option value="60">Every 60s</option>
+              <option value="120">Every 120s</option>
+              <option value="300">Every 300s</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="lbl" for="asScope">Workspace Scope</label>
+            <select id="asScope">
+              <option value="all">All workspaces</option>
+              <option value="watched">Selected folders only</option>
+            </select>
+          </div>
+          <div class="field" style="justify-content:flex-end; padding-bottom:4px">
+            <label class="check">
+              <input type="checkbox" id="asIncludeThinking">
+              <span>Include thinking (&lt;thought&gt;) in synced sessions</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="watched-box" id="watchedBox">
+          <div class="watched-head">
+            <strong style="font-size:13px" id="watchedTitle">Watched folders</strong>
+            <div class="row-actions">
+              <button type="button" class="sm" id="watchAllBtn">Select all detected</button>
+              <button type="button" class="sm ghost" id="watchClearBtn">Clear</button>
+            </div>
+          </div>
+          <div class="watched-list" id="watchedList"></div>
+          <div class="filter-row">
+            <input type="text" id="watchAddInput" placeholder="Add custom folder path (e.g. C:\projects\app)" style="flex:1" autocomplete="off">
+            <button type="button" class="sm" id="watchAddBtn">Add folder</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-foot">
+        <div>
+          <span class="status-pill warn" id="asDirtyPill" hidden>Unsaved changes</span>
+          <span class="brand-sub" id="asHint">Syncs only when a session gains turns or updates, preventing echo loops.</span>
+        </div>
+        <div class="row-actions">
+          <button type="button" id="asSaveBtn">Save Settings</button>
+          <button type="button" class="primary" id="asSyncNowBtn">Sync Now</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="section-head">
+        <h2>Sync Activity Log</h2>
+        <span class="brand-sub" id="historyCount">0 entries</span>
+      </div>
+      <div class="table-wrap">
+        <table class="activity">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Direction</th>
+              <th>Session &amp; Folder</th>
+              <th>Status</th>
+              <th>Target / Resume</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <tr><td colspan="5" class="empty-state">No sync activity yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Preview Slide-Over Drawer -->
+<div class="backdrop" id="previewBackdrop" hidden>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+    <div class="drawer-head">
+      <div style="min-width:0">
+        <div class="row-title-line">
+          <span class="pbadge" id="drawerBadge">agy</span>
+          <span class="extra-badge" id="drawerExtra" hidden></span>
+        </div>
+        <h2 class="drawer-title" id="drawerTitle">Session preview</h2>
+        <div class="drawer-prov-tabs" id="drawerProvTabs" hidden></div>
+      </div>
+      <button type="button" class="sm" id="drawerCloseBtn" aria-label="Close preview">Close</button>
+    </div>
+
+    <div class="drawer-meta">
+      <div class="meta-grid" id="drawerMetaGrid"></div>
+      <div class="cmd-box" id="drawerDirBox" hidden>
+        <span class="lbl">Resume Dir</span>
+        <code id="drawerDirText"></code>
+        <button type="button" class="sm" id="drawerCopyDir">Copy</button>
+      </div>
+      <div class="cmd-box" id="drawerCmdBox" hidden>
+        <span class="lbl">Resume Cmd</span>
+        <code id="drawerCmdText"></code>
+        <button type="button" class="sm primary" id="drawerCopyCmd">Copy cmd</button>
+      </div>
+      <div class="drawer-actions">
+        <button type="button" class="sm primary" id="drawerCopyBtn">Copy</button>
+        <label class="check"><input type="checkbox" id="drawerThinking"><span>Include &lt;thought&gt;</span></label>
+        <button type="button" class="sm" id="drawerTrimBtn">Lighten / Trim</button>
+        <div class="spacer"></div>
+        <button type="button" class="sm danger" id="drawerDeleteBtn">Delete Completely</button>
+      </div>
+    </div>
+
+    <div class="drawer-body" id="drawerTurns"></div>
+  </aside>
+</div>
+
+<!-- Sync Folder Modal -->
+<div class="modal-wrap" id="syncDirModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sdModalTitle">
+    <div class="modal-head">
+      <h3 id="sdModalTitle">Sync Folder Sessions</h3>
+      <button type="button" class="sm ghost" id="sdCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <form id="syncDirForm">
+      <div class="modal-body">
+        <div class="field">
+          <label class="lbl" for="sdCwdSelect">Source Workspace Folder</label>
+          <select id="sdCwdSelect"></select>
+          <input type="text" id="sdCwdCustom" placeholder="Enter folder path (e.g. C:\_personal\_empty)" hidden autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="lbl" for="sdDirection">Direction</label>
+          <select id="sdDirection">
+            <option value="agy->claude">Antigravity (agy) &rarr; Claude Code (claude)</option>
+            <option value="claude->agy">Claude Code (claude) &rarr; Antigravity (agy)</option>
+          </select>
+        </div>
+        <div class="brand-sub" id="sdCountHint"></div>
+        <div class="field">
+          <label class="lbl" for="sdTargetCwd">Target Folder Override (optional)</label>
+          <input type="text" id="sdTargetCwd" placeholder="Blank = preserve source folder" autocomplete="off">
+        </div>
+        <div class="filter-row" style="gap:16px">
+          <label class="check"><input type="checkbox" id="sdThinking"><span>Include &lt;thought&gt;</span></label>
+          <label class="check"><input type="checkbox" id="sdOverwrite"><span>Overwrite existing targets</span></label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="ghost" id="sdCancelBtn">Cancel</button>
+        <button type="submit" class="primary" id="sdSubmitBtn">Sync Folder</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-wrap" id="confirmModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cfTitle" style="width:min(420px,100%)">
+    <div class="modal-head">
+      <h3 id="cfTitle">Confirm action</h3>
+      <button type="button" class="sm ghost" id="cfCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="cfMessage" style="margin:0;overflow-wrap:anywhere"></p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="ghost" id="cfCancelBtn">Cancel</button>
+      <button type="button" class="danger" id="cfOkBtn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lighten / Trim Modal -->
+<div class="modal-wrap" id="trimModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tmTitle" style="width:min(460px,100%)">
+    <div class="modal-head">
+      <h3 id="tmTitle">Lighten Conversation</h3>
+      <button type="button" class="sm ghost" id="tmCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <form id="trimForm">
+      <div class="modal-body">
+        <p id="tmSessionLabel" style="margin:0 0 12px;font-size:13px;color:var(--muted);overflow-wrap:anywhere"></p>
+        <div class="field">
+          <label for="tmKeepPreset">History turns to keep</label>
+          <select id="tmKeepPreset">
+            <option value="50">Keep newest 50% of turns (recommended)</option>
+            <option value="last20">Keep last 20 turns</option>
+            <option value="last50">Keep last 50 turns</option>
+            <option value="all">Keep all turns (only strip heavy logs &amp; sidecars)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="tmPurgeSidecars" checked><span>Purge heavy sidecars (brain images/logs, subagent files, file-history)</span></label>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="tmTruncateTools" checked><span>Truncate large tool outputs (&gt; 2,000 chars)</span></label>
+        </div>
+        <div class="field">
+          <label class="check"><input type="checkbox" id="tmStripThinking" checked><span>Strip internal thinking / reasoning blocks</span></label>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="ghost" id="tmCancelBtn">Cancel</button>
+        <button type="submit" class="primary" id="tmSubmitBtn">Lighten Now</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Storage Clean Up Modal -->
+<div class="modal-wrap" id="cleanupModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="clTitle" style="width:min(540px,100%)">
+    <div class="modal-head">
+      <h3 id="clTitle">Storage Clean Up</h3>
+      <button type="button" class="sm ghost" id="clCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="storage-grid" id="clStorageGrid"></div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="clOrphans" checked><span>Clean orphaned sidecar folders &amp; VACUUM SQLite index</span></label>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="clEmpty"><span>Delete empty 0-turn sessions</span></label>
+      </div>
+      <div class="field">
+        <label class="check"><input type="checkbox" id="clSubagents"><span>Delete subagent logs &amp; Claude subagents/ folders</span></label>
+      </div>
+      <div class="grid-2">
+        <div class="field">
+          <label for="clOlderDays">Also delete sessions older than (days)</label>
+          <input type="number" id="clOlderDays" min="1" placeholder="Optional (e.g. 30)">
+        </div>
+        <div class="field">
+          <label for="clLargerMb">Or larger than (MB)</label>
+          <input type="number" id="clLargerMb" min="0.1" step="0.5" placeholder="Optional (e.g. 10)">
+        </div>
+      </div>
+      <div class="field">
+        <label for="clScope">Scope</label>
+        <select id="clScope">
+          <option value="all">All workspaces</option>
+          <option value="cwd">Current workspace filter only</option>
+        </select>
+      </div>
+      <div class="clean-preview" id="clPreviewBox" hidden>
+        <strong id="clPreviewSummary"></strong>
+        <ul id="clPreviewList"></ul>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="ghost" id="clDoneBtn">Close</button>
+      <button type="button" id="clPreviewBtn">Preview (Dry Run)</button>
+      <button type="button" class="danger" id="clRunBtn">Clean Up Now</button>
+    </div>
+  </div>
+</div>
+
+<div id="liveStatus" class="sr-only" role="status" aria-live="polite"></div>
+<div class="toast-host" id="toastHost"></div>
+
+<script>
+const token = '__MCAS_TOKEN__';
+</script>
+<script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

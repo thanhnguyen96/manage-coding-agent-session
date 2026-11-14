@@ -1,0 +1,32 @@
+[project]
+name = "mcas"
+version = "0.2.0"
+description = "Manage Coding Agent Session - browse, convert, and auto-sync coding agent CLI sessions (Antigravity CLI + Claude Code CLI)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+mcas = "mcas.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.0,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

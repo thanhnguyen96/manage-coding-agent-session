@@ -1,0 +1,79 @@
+:root {
+  --bg: #f6f5f2;
+  --bg-subtle: #efece6;
+  --card: #ffffff;
+  --text: #1d1c1a;
+  --muted: #6b6862;
+  --line: #e3e0da;
+  --accent: #c4633f;
+  --accent-hover: #ae5332;
+  --accent-text: #ffffff;
+  --agy: #5654d4;
+  --agy-bg: rgba(86, 84, 212, 0.10);
+  --claude: #c4633f;
+  --claude-bg: rgba(196, 99, 63, 0.11);
+  --ok: #2f7d4f;
+  --ok-bg: rgba(47, 125, 79, 0.11);
+  --warn: #a3611a;
+  --warn-bg: rgba(163, 97, 26, 0.11);
+  --danger: #b3261e;
+  --danger-bg: rgba(179, 38, 30, 0.09);
+  --chip: #efece6;
+  --code-bg: #f1eee8;
+  --backdrop: rgba(29, 28, 26, 0.42);
+  --shadow: 0 2px 6px rgba(29, 28, 26, 0.06), 0 12px 32px rgba(29, 28, 26, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1918;
+    --bg-subtle: #201f1d;
+    --card: #242321;
+    --text: #ecebe8;
+    --muted: #a29f98;
+    --line: #36342f;
+    --accent: #d97757;
+    --accent-hover: #e5896b;
+    --accent-text: #1a1918;
+    --agy: #9b99ff;
+    --agy-bg: rgba(155, 153, 255, 0.15);
+    --claude: #e4896a;
+    --claude-bg: rgba(217, 119, 87, 0.16);
+    --ok: #6cc28f;
+    --ok-bg: rgba(108, 194, 143, 0.14);
+    --warn: #e0a458;
+    --warn-bg: rgba(224, 164, 88, 0.14);
+    --danger: #f2867e;
+    --danger-bg: rgba(242, 134, 126, 0.14);
+    --chip: #2f2d2a;
+    --code-bg: #1b1a18;
+    --backdrop: rgba(0, 0, 0, 0.58);
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 18px 42px rgba(0, 0, 0, 0.45);
+  }
+}
+
+html[data-theme="dark"] {
+  --bg: #1a1918;
+  --bg-subtle: #201f1d;
+  --card: #242321;
+  --text: #ecebe8;
+  --muted: #a29f98;
+  --line: #36342f;
+  --accent: #d97757;
+  --accent-hover: #e5896b;
+  --accent-text: #1a1918;
+  --agy: #9b99ff;
+  --agy-bg: rgba(155, 153, 255, 0.15);
+  --claude: #e4896a;
+  --claude-bg: rgba(217, 119, 87, 0.16);
+  --ok: #6cc28f;
+  --ok-bg: rgba(108, 194, 143, 0.14);
+  --warn: #e0a458;
+  --warn-bg: rgba(224, 164, 88, 0.14);
+  --danger: #f2867e;
+  --danger-bg: rgba(242, 134, 126, 0.14);
+  --chip: #2f2d2a;
+  --code-bg: #1b1a18;
+  --backdrop: rgba(0, 0, 0, 0.58);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 18px 42px rgba(0, 0, 0, 0.45);
+}

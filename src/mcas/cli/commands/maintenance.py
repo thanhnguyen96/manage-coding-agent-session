@@ -33,7 +33,7 @@ def cmd_delete(args: argparse.Namespace) -> int:
     resolved_items: list[dict[str, str]] = []
     for sid in raw_ids:
         loc, summary = prov.find_session(sid)
-        resolved_id = summary.session_id if summary else loc.stem
+        resolved_id = summary.session_id if summary else prov.session_id_from_location(loc)
         resolved_items.append({"source": prov.id, "id": resolved_id})
 
     also_synced = bool(getattr(args, "also_synced", False))
@@ -64,7 +64,7 @@ def cmd_trim(args: argparse.Namespace) -> int:
         raise SyncError("An explicit session ID is required for trim.")
 
     loc, summary = prov.find_session(sid)
-    resolved_id = summary.session_id if summary else loc.stem
+    resolved_id = summary.session_id if summary else prov.session_id_from_location(loc)
 
     keep_last_turns: int | None = args.keep_turns
     keep_ratio: float | None = args.keep_ratio

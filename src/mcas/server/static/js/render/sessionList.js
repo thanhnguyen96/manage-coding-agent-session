@@ -7,10 +7,11 @@ import {
   formatRelative,
   groupKey,
   oppositeProvider,
+  supportedProviderIds,
 } from '../utils/format.js';
 import { copyText } from '../components/toast.js';
 import { buildProviderDropdownMenu, buildProviderTagButton } from '../providerDropdown.js';
-import { renderFilterPills, renderWorkspaceSelect } from './status.js';
+import { renderFilterPills, renderWorkspaceSelect, updateSyncDirButton } from './status.js';
 import { fetchSessions } from '../actions.js';
 import { openPreviewGroup } from '../drawer.js';
 import { openTrimModal } from '../modals/trimModal.js';
@@ -21,6 +22,7 @@ export function setCwdFilter(cwd) {
   state.cwdCustomMode = false;
   state.limit = 200;
   $('cwdCustomWrap').hidden = true;
+  updateSyncDirButton();
   renderWorkspaceSelect(state.status ? state.status.workspaces : []);
   renderActiveFilters();
   fetchSessions({ silent: false });
@@ -32,6 +34,7 @@ export function clearCwdFilter(reload = true) {
   state.limit = 200;
   $('cwdCustomWrap').hidden = true;
   $('cwdCustomInput').value = '';
+  updateSyncDirButton();
   renderWorkspaceSelect(state.status ? state.status.workspaces : []);
   renderActiveFilters();
   if (reload) fetchSessions({ silent: false });
@@ -64,6 +67,13 @@ export function renderActiveFilters() {
       fetchSessions();
     });
   }
+  if (state.includeAll) {
+    addChip(t('filter.chipIncludeAll'), () => {
+      state.includeAll = false;
+      $('includeAll').checked = false;
+      fetchSessions();
+    });
+  }
 }
 
 export function updateSelectionUI() {
@@ -78,10 +88,13 @@ export function updateSelectionUI() {
   $('selectionBar').hidden = count === 0;
 
   if (count > 0) {
+    const activeIds = supportedProviderIds(state.status && state.status.providers);
     const sources = new Set([...state.selected.values()].flatMap((g) => g.providers || []));
+    const missing = activeIds.filter((id) => !sources.has(id));
     if (sources.size === 1) {
-      const only = [...sources][0];
-      $('bulkTarget').value = oppositeProvider(only);
+      $('bulkTarget').value = oppositeProvider([...sources][0], activeIds);
+    } else if (missing.length) {
+      $('bulkTarget').value = missing[0];
     }
   }
 
@@ -217,7 +230,7 @@ export function renderSessions() {
       ? t('row.idTipSingle', { id: uniqueIds[0] })
       : g.providers.map((p) => `${p}: ${g.members[p].id}`).join('\n');
     const idChip = el('span', {
-      className: 'meta-pill mono clickable',
+      className: 'meta-pill mono clickable adv-only',
       textContent: idLabel,
       title: idTip,
       onclick: () => copyText(g.primary.id, idChip),

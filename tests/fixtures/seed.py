@@ -284,6 +284,363 @@ def make_claude_jsonl(
     return jpath
 
 
+def make_codex_state_db(codex_dir: Path) -> Path:
+    """Create a realistic Codex `state_5.sqlite` with `threads` and CASCADE child table."""
+    codex_dir.mkdir(parents=True, exist_ok=True)
+    db_path = codex_dir / "state_5.sqlite"
+    con = sqlite3.connect(str(db_path))
+    con.execute("PRAGMA foreign_keys = ON")
+    con.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS threads (
+            id TEXT PRIMARY KEY,
+            rollout_path TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL DEFAULT 0,
+            updated_at INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL DEFAULT 'cli',
+            model_provider TEXT NOT NULL DEFAULT 'openai',
+            cwd TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL DEFAULT '',
+            sandbox_policy TEXT NOT NULL DEFAULT '{"type":"read-only"}',
+            approval_mode TEXT NOT NULL DEFAULT 'on-request',
+            tokens_used INTEGER NOT NULL DEFAULT 0,
+            has_user_event INTEGER NOT NULL DEFAULT 1,
+            archived INTEGER NOT NULL DEFAULT 0,
+            archived_at INTEGER,
+            git_sha TEXT,
+            git_branch TEXT,
+            git_origin_url TEXT,
+            cli_version TEXT NOT NULL DEFAULT '',
+            first_user_message TEXT NOT NULL DEFAULT '',
+            agent_nickname TEXT,
+            agent_role TEXT,
+            memory_mode TEXT NOT NULL DEFAULT 'enabled',
+            model TEXT,
+            reasoning_effort TEXT,
+            agent_path TEXT,
+            forked_from_id TEXT,
+            name TEXT,
+            preview TEXT NOT NULL DEFAULT '',
+            thread_source TEXT NOT NULL DEFAULT 'user',
+            created_at_ms INTEGER NOT NULL DEFAULT 0,
+            updated_at_ms INTEGER NOT NULL DEFAULT 0,
+            recency_at INTEGER NOT NULL DEFAULT 0,
+            recency_at_ms INTEGER NOT NULL DEFAULT 0,
+            history_mode TEXT NOT NULL DEFAULT 'legacy'
+        );
+        CREATE TABLE IF NOT EXISTS thread_dynamic_tools (
+            thread_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            input_schema TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY (thread_id, position),
+            FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
+        );
+        """
+    )
+    con.commit()
+    con.close()
+    return db_path
+
+
+def make_codex_jsonl(
+    codex_dir: Path,
+    sid: str,
+    ws_path: str | Path,
+    user_text: str,
+    thought_text: str,
+    reply_text: str,
+    ts_iso: str,
+    *,
+    archived: bool = False,
+    subagent: bool = False,
+    subagent_depth: int = 1,
+    include_tools: bool = True,
+    include_injected: bool = True,
+    event_only: bool = False,
+    raw_cwd: str | None = None,
+    upsert_sqlite: bool = False,
+    custom_name: str = "",
+) -> Path:
+    """Create a realistic Codex rollout JSONL file under `sessions/` or `archived_sessions/`."""
+    date_part = ts_iso[:10]
+    yyyy, mm, dd = date_part.split("-")
+    ts_slug = ts_iso[:19].replace(":", "-")
+    if archived:
+        out_dir = codex_dir / "archived_sessions"
+    else:
+        out_dir = codex_dir / "sessions" / yyyy / mm / dd
+    out_dir.mkdir(parents=True, exist_ok=True)
+    jpath = out_dir / f"rollout-{ts_slug}-{sid}.jsonl"
+
+    cwd_str = raw_cwd if raw_cwd is not None else str(ws_path)
+    meta_payload: dict[str, object] = {
+        "id": sid,
+        "timestamp": ts_iso,
+        "cwd": cwd_str,
+        "originator": "codex_cli_rs",
+        "model_provider": "openai",
+    }
+    if subagent:
+        meta_payload["source"] = {"subagent": {"thread_spawn": {"depth": subagent_depth}}}
+        meta_payload["thread_source"] = "subagent"
+    else:
+        meta_payload["source"] = "cli"
+        meta_payload["thread_source"] = "user"
+
+    recs: list[dict[str, object]] = [
+        {"timestamp": ts_iso, "type": "session_meta", "payload": meta_payload},
+        {
+            "timestamp": ts_iso,
+            "type": "turn_context",
+            "payload": {
+                "cwd": cwd_str,
+                "approval_policy": "on-request",
+                "sandbox_policy": {"type": "read-only"},
+            },
+        },
+    ]
+
+    if event_only:
+        recs.extend(
+            [
+                {
+                    "timestamp": ts_iso,
+                    "type": "event_msg",
+                    "payload": {"type": "user_message", "message": user_text},
+                },
+                {
+                    "timestamp": ts_iso,
+                    "type": "event_msg",
+                    "payload": {"type": "agent_reasoning", "text": thought_text},
+                },
+                {
+                    "timestamp": ts_iso,
+                    "type": "event_msg",
+                    "payload": {"type": "agent_message", "message": reply_text},
+                },
+            ]
+        )
+    else:
+        if include_injected:
+            recs.append(
+                {
+                    "timestamp": ts_iso,
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "role": "developer",
+                        "content": [{"type": "input_text", "text": "System developer prompt"}],
+                    },
+                }
+            )
+            recs.append(
+                {
+                    "timestamp": ts_iso,
+                    "type": "response_item",
+                    "payload": {
+                        "type": "message",
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": "# AGENTS.md instructions for repo\nFollow rules.",
+                            },
+                            {"type": "input_text", "text": "<environment_context>\nOS: win\n</environment_context>"},
+                        ],
+                        "internal_chat_message_metadata_passthrough": {
+                            "content_item_kinds": [
+                                "agents_md.instructions",
+                                "environments.environment_context",
+                            ]
+                        },
+                    },
+                }
+            )
+
+        recs.append(
+            {
+                "timestamp": ts_iso,
+                "type": "event_msg",
+                "payload": {"type": "user_message", "message": user_text},
+            }
+        )
+        recs.append(
+            {
+                "timestamp": ts_iso,
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": user_text}],
+                    "internal_chat_message_metadata_passthrough": {
+                        "content_item_kinds": ["user.text"]
+                    },
+                },
+            }
+        )
+
+        if thought_text:
+            recs.append(
+                {
+                    "timestamp": ts_iso,
+                    "type": "response_item",
+                    "payload": {
+                        "type": "reasoning",
+                        "summary": [{"type": "summary_text", "text": thought_text}],
+                        "encrypted_content": "gAAAAAB_OPAQUE_SECRET_BLOB",
+                    },
+                }
+            )
+
+        if include_tools:
+            recs.extend(
+                [
+                    {
+                        "timestamp": ts_iso,
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "call_id": "call_fn_1",
+                            "name": "read_file",
+                            "arguments": '{"path":"README.md"}',
+                        },
+                    },
+                    {
+                        "timestamp": ts_iso,
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "call_fn_1",
+                            "output": "README ok",
+                        },
+                    },
+                    {
+                        "timestamp": ts_iso,
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call",
+                            "call_id": "call_custom_1",
+                            "name": "apply_patch",
+                            "input": "*** Begin Patch\n*** End Patch",
+                        },
+                    },
+                    {
+                        "timestamp": ts_iso,
+                        "type": "response_item",
+                        "payload": {
+                            "type": "custom_tool_call_output",
+                            "call_id": "call_custom_1",
+                            "output": [{"type": "text", "text": "Patched"}],
+                        },
+                    },
+                    {
+                        "timestamp": ts_iso,
+                        "type": "response_item",
+                        "payload": {
+                            "type": "local_shell_call",
+                            "call_id": "call_sh_1",
+                            "action": {"command": ["echo", "hi"]},
+                        },
+                    },
+                    {
+                        "timestamp": ts_iso,
+                        "type": "response_item",
+                        "payload": {
+                            "type": "local_shell_call_output",
+                            "call_id": "call_sh_1",
+                            "output": "hi",
+                        },
+                    },
+                ]
+            )
+
+        recs.append(
+            {
+                "timestamp": ts_iso,
+                "type": "response_item",
+                "payload": {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": reply_text}],
+                },
+            }
+        )
+
+    jpath.write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False) for r in recs) + "\n",
+        encoding="utf-8",
+    )
+
+    if upsert_sqlite:
+        db_path = make_codex_state_db(codex_dir)
+        con = sqlite3.connect(str(db_path))
+        con.execute(
+            """
+            INSERT INTO threads (
+                id, rollout_path, created_at, updated_at, source, model_provider,
+                cwd, title, archived, first_user_message, name, preview,
+                thread_source, created_at_ms, updated_at_ms, recency_at, recency_at_ms, history_mode
+            )
+            VALUES (?, ?, 1763110800, 1763110800, 'cli', 'openai', ?, ?, ?, ?, ?, ?, ?, 1763110800000, 1763110800000, 1763110800, 1763110800000, 'legacy')
+            ON CONFLICT(id) DO UPDATE SET rollout_path=excluded.rollout_path, cwd=excluded.cwd, title=excluded.title
+            """,
+            (
+                sid,
+                str(jpath),
+                cwd_str,
+                user_text[:80],
+                1 if archived else 0,
+                user_text,
+                custom_name or None,
+                user_text[:120],
+                "subagent" if subagent else "user",
+            ),
+        )
+        con.commit()
+        con.close()
+
+    return jpath
+
+
+def make_codex_empty_jsonl(
+    codex_dir: Path,
+    sid: str,
+    ws_path: str | Path,
+    ts_iso: str,
+) -> Path:
+    """Create an empty Codex rollout JSONL containing only `session_meta` and `turn_context`."""
+    date_part = ts_iso[:10]
+    yyyy, mm, dd = date_part.split("-")
+    ts_slug = ts_iso[:19].replace(":", "-")
+    out_dir = codex_dir / "sessions" / yyyy / mm / dd
+    out_dir.mkdir(parents=True, exist_ok=True)
+    jpath = out_dir / f"rollout-{ts_slug}-{sid}.jsonl"
+    recs = [
+        {
+            "timestamp": ts_iso,
+            "type": "session_meta",
+            "payload": {
+                "id": sid,
+                "timestamp": ts_iso,
+                "cwd": str(ws_path),
+                "originator": "codex_cli_rs",
+                "source": "cli",
+                "thread_source": "user",
+                "model_provider": "openai",
+            },
+        },
+        {
+            "timestamp": ts_iso,
+            "type": "turn_context",
+            "payload": {"cwd": str(ws_path)},
+        },
+    ]
+    jpath.write_text("\n".join(json.dumps(r) for r in recs) + "\n", encoding="utf-8")
+    return jpath
+
+
 def seed_heavy_and_clean_fixtures(
     agy_dir: Path,
     claude_dir: Path,

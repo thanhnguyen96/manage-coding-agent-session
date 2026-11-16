@@ -19,6 +19,7 @@ class SandboxEnv:
     agy_dir: Path
     agy_ide_dir: Path
     claude_dir: Path
+    codex_dir: Path
     localappdata: Path
     appdata: Path
     userprofile: Path
@@ -47,7 +48,7 @@ def _clear_mcas_caches() -> None:
 
 @pytest.fixture(autouse=True)
 def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SandboxEnv:
-    """Redirect all mcas/agy/claude/Windows user directories to a temp sandbox."""
+    """Redirect all mcas/agy/claude/codex/Windows user directories to a temp sandbox."""
     localappdata = tmp_path / "Local"
     appdata = tmp_path / "Roaming"
     userprofile = tmp_path / "home"
@@ -55,6 +56,7 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SandboxEnv:
     agy_dir = tmp_path / "agy-cli"
     agy_ide_dir = tmp_path / "agy-ide"
     claude_dir = tmp_path / "claude"
+    codex_dir = tmp_path / "codex"
     ws_a = tmp_path / "work" / "projA"
     ws_b = tmp_path / "work" / "projB"
     ws_c = tmp_path / "work" / "projAuto"
@@ -67,6 +69,7 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SandboxEnv:
         agy_dir,
         agy_ide_dir,
         claude_dir,
+        codex_dir,
         ws_a,
         ws_b,
         ws_c,
@@ -82,6 +85,7 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SandboxEnv:
         "MCAS_AGY_DIR": str(agy_dir),
         "MCAS_AGY_IDE_DIR": str(agy_ide_dir),
         "MCAS_CLAUDE_DIR": str(claude_dir),
+        "MCAS_CODEX_DIR": str(codex_dir),
         "MCAS_PORT": port,
     }
     for key, val in overrides.items():
@@ -96,6 +100,7 @@ def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> SandboxEnv:
         agy_dir=agy_dir,
         agy_ide_dir=agy_ide_dir,
         claude_dir=claude_dir,
+        codex_dir=codex_dir,
         localappdata=localappdata,
         appdata=appdata,
         userprofile=userprofile,

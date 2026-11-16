@@ -12,6 +12,8 @@
   --agy-bg: rgba(86, 84, 212, 0.10);
   --claude: #c4633f;
   --claude-bg: rgba(196, 99, 63, 0.11);
+  --codex: #0e7490;
+  --codex-bg: rgba(14, 116, 144, 0.11);
   --ok: #2f7d4f;
   --ok-bg: rgba(47, 125, 79, 0.11);
   --warn: #a3611a;
@@ -39,6 +41,8 @@
     --agy-bg: rgba(155, 153, 255, 0.15);
     --claude: #e4896a;
     --claude-bg: rgba(217, 119, 87, 0.16);
+    --codex: #56c2db;
+    --codex-bg: rgba(86, 194, 219, 0.16);
     --ok: #6cc28f;
     --ok-bg: rgba(108, 194, 143, 0.14);
     --warn: #e0a458;
@@ -66,6 +70,8 @@ html[data-theme="dark"] {
   --agy-bg: rgba(155, 153, 255, 0.15);
   --claude: #e4896a;
   --claude-bg: rgba(217, 119, 87, 0.16);
+  --codex: #56c2db;
+  --codex-bg: rgba(86, 194, 219, 0.16);
   --ok: #6cc28f;
   --ok-bg: rgba(108, 194, 143, 0.14);
   --warn: #e0a458;

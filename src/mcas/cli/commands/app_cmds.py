@@ -12,12 +12,12 @@ from mcas.server.app import serve_http
 
 def format_top_level_help() -> str:
     return (
-        f"mcas {VERSION} - Manage Coding Agent Session (Antigravity CLI + Claude Code CLI)\n\n"
+        f"mcas {VERSION} - Manage Coding Agent Session (Antigravity CLI + Claude Code CLI + Codex CLI)\n\n"
         f"  mcas                                    open the web UI and start the tray icon\n"
         f"  mcas ui [--port <n>] [--no-browser]     start/open the web UI (default port: {DEFAULT_PORT})\n"
         f"  mcas ui stop                            stop the web UI server and tray icon\n"
-        f"  mcas list [options]                     list sessions from agy and claude\n"
-        f"  mcas copy <id|latest> --to <provider>   copy a session between providers (agy, claude)\n"
+        f"  mcas list [options]                     list sessions from agy, claude, and codex\n"
+        f"  mcas copy <id|latest> --to <provider>   copy a session between providers (agy, claude, codex)\n"
         f"  mcas agy2claude <id|latest> [options]   copy an agy conversation to Claude Code\n"
         f"  mcas claude2agy <id|latest> [options]   copy a Claude Code session to agy\n"
         f"  mcas sync-dir --from <p> --to <p>       copy all top-level sessions in a workspace\n"

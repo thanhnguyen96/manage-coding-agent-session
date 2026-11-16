@@ -9,6 +9,10 @@ import urllib.parse
 def normalize_windows_path(path: str) -> str:
     """Normalize a local path (preserving drive-root trailing slash and drive casing)."""
     raw = path.strip()
+    if raw[:8].upper() == "\\\\?\\UNC\\":
+        raw = "\\\\" + raw[8:]
+    elif raw.startswith("\\\\?\\"):
+        raw = raw[4:]
     if len(raw) == 2 and raw[1] == ":" and raw[0].isalpha():
         raw += "\\"
     cleaned = os.path.normpath(os.path.abspath(raw))

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from mcas.cache import _fast_file_size
 from mcas.errors import SyncError
 from mcas.models import (
     CanonicalSession,
@@ -29,6 +30,22 @@ class AgentProvider(ABC):
             "sizeBytes": size_bytes,
             "sizeHuman": format_bytes(size_bytes),
         }
+
+    def session_id_from_location(self, location: Path) -> str:
+        """Return the canonical session ID corresponding to a storage path."""
+        return location.stem
+
+    def get_session_size(
+        self,
+        session_id: str,
+        location: Path,
+        summary: SessionSummary | None = None,
+        *,
+        include_children: bool = True,
+    ) -> tuple[int, int, int]:
+        """Return `(total_bytes, main_bytes, sidecar_bytes)` for a session."""
+        sz = _fast_file_size(location)
+        return sz, sz, 0
 
     @abstractmethod
     def list_sessions(

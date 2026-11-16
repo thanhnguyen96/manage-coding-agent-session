@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from pathlib import Path
+import sqlite3
 
 import pytest
 
@@ -18,11 +20,19 @@ from mcas.models import (
     canonical_session_hash,
 )
 from mcas.providers import get_provider, get_supported_providers
+from mcas.services import clean as clean_svc
 from mcas.services import delete as delete_svc
 from mcas.services import query as query_svc
+from mcas.services import trim as trim_svc
 from mcas.sync import state as sync_state
 from mcas.util import pathconv, protobuf, text, timefmt
-from tests.fixtures.seed import make_agy_db, make_claude_jsonl
+from tests.fixtures.seed import (
+    make_agy_db,
+    make_claude_jsonl,
+    make_codex_empty_jsonl,
+    make_codex_jsonl,
+    make_codex_state_db,
+)
 
 
 def test_varint_and_wire_codec_roundtrip() -> None:
@@ -88,6 +98,11 @@ def test_path_and_slug_conversion() -> None:
     assert pathconv.windows_path_to_slug("c:\\") == "C--"
     assert pathconv.windows_path_to_slug("c:") == "C--"
     assert pathconv.normalize_windows_path("d:") == "D:\\"
+    assert pathconv.normalize_windows_path(r"\\?\D:\Work\ProjA") == pathconv.normalize_windows_path(
+        r"D:\Work\ProjA"
+    )
+    assert pathconv.normalize_windows_path(r"\\?\d:") == "D:\\"
+    assert pathconv.normalize_windows_path(r"\\?\UNC\server\share\proj") == r"\\server\share\proj"
 
     assert pathconv.paths_match(r"c:\Work\ProjA\\", r"C:\work\proja")
     assert not pathconv.paths_match(r"C:\Work\ProjA", r"C:\Work\ProjB")
@@ -238,14 +253,20 @@ def test_config_env_overrides_and_providers(sandbox) -> None:
     assert config.get_agy_ide_dir() == sandbox.agy_ide_dir
     assert config.get_claude_dir() == sandbox.claude_dir
     assert config.get_claude_projects_dir() == sandbox.claude_dir / "projects"
+    assert config.get_codex_dir() == sandbox.codex_dir
+    assert config.get_codex_sessions_dir() == sandbox.codex_dir / "sessions"
+    assert config.get_codex_archived_dir() == sandbox.codex_dir / "archived_sessions"
     assert config.get_sync_state_path() == sandbox.mcas_root / "sync_state.json"
     assert config.get_ui_json_path() == sandbox.mcas_root / "ui.json"
     assert config.get_default_port() == int(sandbox.env["MCAS_PORT"])
 
     supported_ids = {p.id for p in get_supported_providers()}
-    assert supported_ids == {"agy", "claude"}
+    assert supported_ids == {"agy", "claude", "codex"}
     assert get_provider("agy").supported is True
     assert get_provider("claude").supported is True
+    codex = get_provider("codex")
+    assert codex.supported is True and codex.coming_soon is False
+    assert codex.resume_command("abc-123") == "codex resume abc-123"
     opencode = get_provider("opencode", require_supported=False)
     assert opencode.coming_soon is True
     with pytest.raises(SyncError):
@@ -341,3 +362,290 @@ def test_grouping_agnostic_synced_lookup_and_sort(sandbox) -> None:
     assert [s.session_id for s in summaries] == ["1", "2"]
     query_svc._sort_sessions(summaries, "turns")
     assert [s.session_id for s in summaries] == ["2", "1"]
+
+
+def test_codex_codec_injected_context_tools_thinking_and_event_fallback(sandbox) -> None:
+    codex = get_provider("codex")
+    sid_main = "12345678-1234-4123-8123-1234567890ab"
+    ws_str = str(sandbox.ws_a)
+    unc_ws = (r"\\?\\"[:-1] + ws_str) if len(ws_str) >= 2 and ws_str[1] == ":" else ws_str
+    jpath = make_codex_jsonl(
+        sandbox.codex_dir,
+        sid_main,
+        sandbox.ws_a,
+        "Explain Codex rollout parsing",
+        "Inspecting rollout records",
+        "Codex final answer",
+        "2026-11-15T10:00:00.000Z",
+        include_tools=True,
+        include_injected=True,
+        raw_cwd=unc_ws,
+    )
+    sess = codex.read_session(jpath)
+    assert sess.session_id == sid_main
+    assert sess.source == "codex"
+    assert pathconv.paths_match(sess.cwd, str(sandbox.ws_a))
+
+    user_turns = [t for t in sess.turns if t.role == "user"]
+    assert len(user_turns) == 1
+    assert user_turns[0].text == "Explain Codex rollout parsing"
+    assert "AGENTS.md" not in user_turns[0].text
+    assert "<environment_context>" not in user_turns[0].text
+    assert not any("System developer prompt" in t.text for t in sess.turns)
+
+    asst_turns = [t for t in sess.turns if t.role == "assistant"]
+    assert any(t.thinking == "Inspecting rollout records" for t in asst_turns)
+    assert not any("OPAQUE_SECRET_BLOB" in (t.thinking + t.text) for t in asst_turns)
+    all_calls = [tc for t in asst_turns for tc in t.tool_calls]
+    assert [tc.name for tc in all_calls] == ["read_file", "apply_patch", "shell"]
+    assert json.loads(all_calls[1].arguments_json) == {"raw": "*** Begin Patch\n*** End Patch"}
+    tool_results = [tr for t in sess.turns if t.role == "tool_result" for tr in t.tool_results]
+    assert len(tool_results) == 3
+    assert tool_results[1].content == "Patched"
+    assert any(t.text == "Codex final answer" for t in asst_turns)
+
+    # Event-only fallback when rollout has no response_item messages
+    sid_ev = "22345678-1234-4123-8123-1234567890ab"
+    ev_path = make_codex_jsonl(
+        sandbox.codex_dir,
+        sid_ev,
+        sandbox.ws_b,
+        "Event fallback prompt",
+        "Event reasoning trace",
+        "Event agent reply",
+        "2026-11-15T10:05:00.000Z",
+        event_only=True,
+    )
+    ev_sess = codex.read_session(ev_path)
+    assert [t.role for t in ev_sess.turns] == ["user", "assistant", "assistant"]
+    assert ev_sess.turns[0].text == "Event fallback prompt"
+    assert ev_sess.turns[1].thinking == "Event reasoning trace"
+    assert ev_sess.turns[2].text == "Event agent reply"
+
+
+def test_codex_subagent_archived_title_overrides_and_find_session(sandbox) -> None:
+    codex = get_provider("codex")
+    sid_user = "32345678-1234-4123-8123-1234567890ab"
+    sid_sub = "42345678-1234-4123-8123-1234567890ab"
+    sid_arch = "52345678-1234-4123-8123-1234567890ab"
+
+    make_codex_jsonl(
+        sandbox.codex_dir,
+        sid_user,
+        sandbox.ws_a,
+        "Primary Codex chat",
+        "",
+        "Primary reply",
+        "2026-11-15T11:00:00.000Z",
+        include_tools=False,
+    )
+    make_codex_jsonl(
+        sandbox.codex_dir,
+        sid_sub,
+        sandbox.ws_a,
+        "Subagent task",
+        "",
+        "Subagent reply",
+        "2026-11-15T11:01:00.000Z",
+        subagent=True,
+        subagent_depth=2,
+        include_tools=False,
+    )
+    make_codex_jsonl(
+        sandbox.codex_dir,
+        sid_arch,
+        sandbox.ws_a,
+        "Archived Codex chat",
+        "",
+        "Archived reply",
+        "2026-11-15T11:02:00.000Z",
+        archived=True,
+        include_tools=False,
+    )
+
+    # JSON-string subagent source vs user fork (forked_from_id alone is NOT a subagent)
+    sid_str_sub = "55345678-1234-4123-8123-1234567890ab"
+    sid_fork = "56345678-1234-4123-8123-1234567890ab"
+    str_sub_path = (
+        sandbox.codex_dir / "sessions" / "2026" / "11" / "15"
+        / f"rollout-2026-11-15T11-03-00-{sid_str_sub}.jsonl"
+    )
+    str_sub_path.parent.mkdir(parents=True, exist_ok=True)
+    str_sub_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-11-15T11:03:00.000Z",
+                        "type": "session_meta",
+                        "payload": {
+                            "id": sid_str_sub,
+                            "cwd": str(sandbox.ws_a),
+                            "source": json.dumps({"subagent": {"other": "guardian"}}),
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-11-15T11:03:01.000Z",
+                        "type": "event_msg",
+                        "payload": {"type": "user_message", "message": "Guardian check"},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    fork_path = (
+        sandbox.codex_dir / "sessions" / "2026" / "11" / "15"
+        / f"rollout-2026-11-15T11-04-00-{sid_fork}.jsonl"
+    )
+    fork_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "timestamp": "2026-11-15T11:04:00.000Z",
+                        "type": "session_meta",
+                        "payload": {
+                            "id": sid_fork,
+                            "cwd": str(sandbox.ws_a),
+                            "source": "cli",
+                            "forked_from_id": sid_user,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "timestamp": "2026-11-15T11:04:01.000Z",
+                        "type": "event_msg",
+                        "payload": {"type": "user_message", "message": "User forked chat"},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    # session_index.jsonl title override
+    (sandbox.codex_dir / "session_index.jsonl").write_text(
+        json.dumps({"id": sid_user, "thread_name": "Custom Codex Index Title"}) + "\n",
+        encoding="utf-8",
+    )
+
+    default_list = codex.list_sessions(include_all=False)
+    assert {s.session_id for s in default_list} == {sid_user, sid_fork}
+    user_sum = next(s for s in default_list if s.session_id == sid_user)
+    assert user_sum.title == "Custom Codex Index Title"
+
+    all_list = codex.list_sessions(include_all=True)
+    by_id = {s.session_id: s for s in all_list}
+    assert set(by_id) == {sid_user, sid_sub, sid_arch, sid_str_sub, sid_fork}
+    assert "depth=2" in by_id[sid_sub].extra
+    assert "depth=1" in by_id[sid_str_sub].extra
+    assert "depth=" not in by_id[sid_fork].extra
+    assert "archived" in by_id[sid_arch].extra
+
+    # Prefix lookup & path traversal guard
+    found_path, found_sum = codex.find_session("32345678")
+    assert found_path.is_file() and found_sum is not None and found_sum.session_id == sid_user
+    with pytest.raises(SyncError):
+        codex.find_session("../escape")
+
+
+def test_codex_write_sqlite_cascade_trim_clean_and_delete(sandbox) -> None:
+    codex = get_provider("codex")
+    db_path = make_codex_state_db(sandbox.codex_dir)
+
+    sid = "62345678-1234-4123-8123-1234567890ab"
+    paginated_id = "72345678-1234-4123-8123-1234567890ab"
+    empty_id = "82345678-1234-4123-8123-1234567890ab"
+
+    make_codex_jsonl(
+        sandbox.codex_dir,
+        sid,
+        sandbox.ws_a,
+        "Initial prompt",
+        "Long thinking " * 25,
+        "Initial answer",
+        "2026-11-15T12:00:00.000Z",
+        include_tools=True,
+        upsert_sqlite=True,
+    )
+    make_codex_empty_jsonl(sandbox.codex_dir, empty_id, sandbox.ws_a, "2026-11-15T12:05:00.000Z")
+
+    # Add FK child row under threads(sid) and a paginated thread without rollout_path on disk
+    con = sqlite3.connect(str(db_path))
+    con.execute("PRAGMA foreign_keys = ON")
+    con.execute(
+        "INSERT INTO thread_dynamic_tools (thread_id, position, name) VALUES (?, 0, 'my_dyn_tool')",
+        (sid,),
+    )
+    con.execute(
+        """
+        INSERT INTO threads (
+            id, rollout_path, created_at, updated_at, source, model_provider,
+            cwd, title, archived, first_user_message, preview, thread_source,
+            created_at_ms, updated_at_ms, recency_at, recency_at_ms, history_mode
+        )
+        VALUES (?, ?, 1763110800, 1763110800, 'cli', 'openai', ?, 'Paginated Thread', 0, 'Hi', 'Hi', 'user', 1763110800000, 1763110800000, 1763110800, 1763110800000, 'paginated')
+        """,
+        (paginated_id, str(sandbox.codex_dir / "missing_paginated.jsonl"), str(sandbox.ws_a)),
+    )
+    con.commit()
+    con.close()
+
+    # Overwrite with include_thinking=True -> folds <thought> into output_text and preserves FK child row
+    sess = codex.read_session(codex.find_session(sid)[0])
+    written_id, out_path, regenerated = codex.write_session(
+        sess,
+        target_cwd=str(sandbox.ws_a),
+        overwrite=True,
+        include_thinking=True,
+    )
+    assert written_id == sid and not regenerated and out_path.is_file()
+    raw_written = out_path.read_text(encoding="utf-8")
+    assert "<thought>" in raw_written
+
+    con = sqlite3.connect(str(db_path))
+    dyn_rows = con.execute(
+        "SELECT name FROM thread_dynamic_tools WHERE thread_id = ?", (sid,)
+    ).fetchall()
+    con.close()
+    assert dyn_rows == [("my_dyn_tool",)], "FK child row must survive write_session upsert"
+
+    # Trim in-place
+    tr = trim_svc.trim_session(
+        source="codex",
+        session_id=sid,
+        keep_last_turns=2,
+        strip_thinking=True,
+        max_tool_output_chars=128,
+    )
+    assert tr["ok"] is True
+
+    # Clean empty session; paginated row without rollout_path MUST NOT be deleted
+    cl = clean_svc.clean_storage(
+        source="codex",
+        clean_orphans=True,
+        delete_empty=True,
+        dry_run=False,
+    )
+    assert cl["sessionsDeleted"] >= 1
+    con = sqlite3.connect(str(db_path))
+    pag_row = con.execute(
+        "SELECT id, history_mode FROM threads WHERE id = ?", (paginated_id,)
+    ).fetchone()
+    con.close()
+    assert pag_row == (paginated_id, "paginated")
+
+    # Delete removes rollout file, prunes empty YYYY/MM/DD dirs, and deletes threads row
+    del_res = codex.delete_session(sid)
+    assert del_res["deleted"] is True
+    assert not out_path.exists()
+    assert not out_path.parent.exists()
+    con = sqlite3.connect(str(db_path))
+    assert con.execute("SELECT 1 FROM threads WHERE id = ?", (sid,)).fetchone() is None
+    con.close()

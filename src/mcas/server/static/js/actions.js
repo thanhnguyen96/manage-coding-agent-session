@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { isAdvanced, state } from './state.js';
 import { api } from './api.js';
 import { $ } from './utils/dom.js';
 import { formatBytes, groupKey } from './utils/format.js';
@@ -123,11 +123,12 @@ export async function copySingleSession(source, id, toProvider, includeThinking)
 
 export async function copySelectedSessions() {
   if (!state.selected.size) return;
+  const adv = isAdvanced();
   const toProvider = $('bulkTarget').value;
-  const targetCwd = $('bulkTargetCwd').value.trim();
-  const includeThinking = $('bulkThinking').checked;
-  const newId = $('bulkNewId').checked;
-  const overwrite = $('bulkOverwrite').checked;
+  const targetCwd = adv ? $('bulkTargetCwd').value.trim() : '';
+  const includeThinking = adv ? $('bulkThinking').checked : false;
+  const newId = adv ? $('bulkNewId').checked : false;
+  const overwrite = adv ? $('bulkOverwrite').checked : false;
   const items = [...state.selected.values()].map((g) => ({
     source: g.primary.source,
     id: g.primary.id,

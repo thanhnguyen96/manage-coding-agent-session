@@ -21,10 +21,10 @@ import pytest
 _BASE_ENV = os.environ.copy()
 
 try:
-    from tests.fixtures.seed import claude_slug
+    from tests.fixtures.seed import claude_slug, make_codex_jsonl
 except ModuleNotFoundError:
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
-    from tests.fixtures.seed import claude_slug
+    from tests.fixtures.seed import claude_slug, make_codex_jsonl
 
 
 def _find_chrome() -> pathlib.Path | None:
@@ -162,6 +162,7 @@ def _seed_sandbox(sb: pathlib.Path, mcas_port: int) -> tuple[dict[str, str], dic
     agy_cli = sb / "agy_cli"
     agy_ide = sb / "agy_ide"
     claude_dir = sb / "claude"
+    codex_dir = sb / "codex"
     mcas_root = sb / "mcas_root"
     ws = sb / "repo_ws"
     for d in (
@@ -171,6 +172,7 @@ def _seed_sandbox(sb: pathlib.Path, mcas_port: int) -> tuple[dict[str, str], dic
         agy_cli / "implicit",
         agy_ide,
         claude_dir,
+        codex_dir / "sessions",
         mcas_root,
         ws,
         sb / "localappdata",
@@ -182,11 +184,13 @@ def _seed_sandbox(sb: pathlib.Path, mcas_port: int) -> tuple[dict[str, str], dic
     synced_id = "aaaaaaaa-1111-4111-8111-111111111111"
     heavy_id = "bbbbbbbb-2222-4222-8222-222222222222"
     empty_id = "cccccccc-3333-4333-8333-333333333333"
+    codex_id = "dddddddd-4444-4444-8444-444444444444"
 
     env = os.environ.copy()
     env["MCAS_AGY_DIR"] = str(agy_cli)
     env["MCAS_AGY_IDE_DIR"] = str(agy_ide)
     env["MCAS_CLAUDE_DIR"] = str(claude_dir)
+    env["MCAS_CODEX_DIR"] = str(codex_dir)
     env["MCAS_ROOT"] = str(mcas_root)
     env["MCAS_PORT"] = str(mcas_port)
     env["LOCALAPPDATA"] = str(sb / "localappdata")
@@ -314,6 +318,18 @@ def _seed_sandbox(sb: pathlib.Path, mcas_port: int) -> tuple[dict[str, str], dic
     orphan_dir.mkdir(parents=True, exist_ok=True)
     (orphan_dir / "junk.bin").write_bytes(b"O" * 32768)
 
+    make_codex_jsonl(
+        codex_dir,
+        codex_id,
+        ws,
+        "Codex UI Chat",
+        "Codex E2E thinking",
+        "Codex E2E reply",
+        "2026-11-14T09:15:00.000Z",
+        include_tools=False,
+        upsert_sqlite=True,
+    )
+
     cp = subprocess.run(
         [sys.executable, "-m", "mcas", "copy", synced_id, "--to", "agy", "--json"],
         env=env,
@@ -328,6 +344,7 @@ def _seed_sandbox(sb: pathlib.Path, mcas_port: int) -> tuple[dict[str, str], dic
         "synced_agy_id": copy_info.get("targetId") or copy_info.get("id") or synced_id,
         "heavy_id": heavy_id,
         "empty_id": empty_id,
+        "codex_id": codex_id,
         "orphan_dir": orphan_dir,
         "empty_jsonl": proj / f"{empty_id}.jsonl",
         "proj_dir": proj,
@@ -426,45 +443,107 @@ def run_cdp_e2e() -> None:
         cdp.call("Runtime.enable")
         cdp.call("Network.enable")
 
-        # 1. Grouped rows render with (claude, agy)
+        # 1. Grouped rows render with (claude, agy) and (codex), and Codex appears as supported
         _wait_cond(
             cdp,
-            "document.querySelectorAll('#sessionList .session-row').length >= 2",
-            desc="initial session rows",
+            "document.querySelectorAll('#sessionList .session-row').length >= 3 && document.querySelectorAll('#providerChips .pchip').length >= 3 && document.querySelectorAll('#providerPills button').length >= 3",
+            desc="initial session rows and provider status",
         )
         state_snap = cdp.eval_js(
             """(() => {
             const rows = [...document.querySelectorAll('#sessionList .session-row')];
+            const chips = [...document.querySelectorAll('#providerChips .pchip')].map(c => c.textContent.trim());
+            const pills = [...document.querySelectorAll('#providerPills button')].map(b => b.textContent.trim());
             return {
                 rowCount: rows.length,
                 tags: rows.map(r => r.querySelector('.prov-tag-btn')?.textContent?.trim()),
                 titles: rows.map(r => r.querySelector('.session-title')?.textContent?.trim()),
+                chips,
+                pills,
             };
         })()"""
         )
-        assert state_snap["rowCount"] == 2, f"Expected 2 grouped rows, got {state_snap}"
+        assert state_snap["rowCount"] == 3, f"Expected 3 grouped rows, got {state_snap}"
         assert "(claude, agy)" in state_snap["tags"], f"Missing (claude, agy) tag: {state_snap}"
+        assert "(codex)" in state_snap["tags"], f"Missing (codex) tag: {state_snap}"
+        assert any("Codex" in c and "Soon" not in c for c in state_snap["chips"]), (
+            f"Expected Codex active chip (not Soon): {state_snap}"
+        )
+        assert "Codex" in state_snap["pills"], f"Expected Codex filter pill: {state_snap}"
 
-        # 1a. Top-right placement of #helpBtn, #langBtn, #themeBtn inside .topbar
+        # 1a-codex: Filter by Codex pill, open Codex Preview drawer in Basic mode, verify resume cmd & copy targets
+        cdp.eval_js(
+            """(() => {
+            const btn = [...document.querySelectorAll('#providerPills button')].find(b => b.textContent.trim() === 'Codex');
+            btn.click();
+        })()"""
+        )
+        _wait_cond(
+            cdp,
+            "document.querySelectorAll('#sessionList .session-row').length === 1 && document.querySelector('#sessionList .session-row')?.textContent?.includes('Codex UI Chat')",
+            desc="codex filter pill active",
+        )
+        cdp.eval_js(
+            """(() => {
+            const row = document.querySelector('#sessionList .session-row');
+            const prevBtn = [...row.querySelectorAll('.row-actions button')].find(b => b.textContent.trim() === 'Preview');
+            prevBtn.click();
+        })()"""
+        )
+        _wait_cond(
+            cdp,
+            "!document.getElementById('previewBackdrop').hidden && document.getElementById('drawerBadge').textContent.trim() === 'codex' && document.getElementById('drawerCmdText').textContent.trim().length > 0",
+            desc="codex drawer loaded",
+        )
+        codex_drawer = cdp.eval_js(
+            """(() => ({
+            badgeCls: document.getElementById('drawerBadge').className,
+            badgeText: document.getElementById('drawerBadge').textContent.trim(),
+            cmdText: document.getElementById('drawerCmdText').textContent.trim(),
+            copyTargets: [...document.querySelectorAll('#drawerCopyTarget option')].map(o => o.value),
+        }))()"""
+        )
+        assert "codex" in codex_drawer["badgeCls"] and codex_drawer["badgeText"] == "codex", codex_drawer
+        assert codex_drawer["cmdText"] == f"codex resume {meta['codex_id']}", codex_drawer
+        assert set(codex_drawer["copyTargets"]) == {"claude", "agy"}, codex_drawer
+        cdp.eval_js("document.getElementById('drawerCloseBtn').click()")
+        _wait_cond(cdp, "document.getElementById('previewBackdrop').hidden", desc="codex drawer closed")
+
+        cdp.eval_js(
+            """(() => {
+            const btn = [...document.querySelectorAll('#providerPills button')].find(b => b.textContent.trim() === 'All');
+            btn.click();
+        })()"""
+        )
+        _wait_cond(
+            cdp,
+            "document.querySelectorAll('#sessionList .session-row').length === 3",
+            desc="all filter pill restored",
+        )
+
+        # 1a. Top-right placement of #settingsBtn, #helpBtn, #langBtn, #themeBtn inside .topbar
         placement = cdp.eval_js(
             """(() => {
             const tb = document.querySelector('.topbar').getBoundingClientRect();
+            const sb = document.getElementById('settingsBtn').getBoundingClientRect();
             const hb = document.getElementById('helpBtn').getBoundingClientRect();
             const lb = document.getElementById('langBtn').getBoundingClientRect();
             const th = document.getElementById('themeBtn').getBoundingClientRect();
-            const aw = document.getElementById('autostartWrap')?.getBoundingClientRect();
             return {
                 topbar: { top: tb.top, right: tb.right, bottom: tb.bottom, width: tb.width },
+                settings: { top: sb.top, right: sb.right, bottom: sb.bottom, width: sb.width, height: sb.height },
                 help: { top: hb.top, right: hb.right, bottom: hb.bottom, width: hb.width, height: hb.height },
                 lang: { top: lb.top, right: lb.right, bottom: lb.bottom, width: lb.width, height: lb.height },
                 theme: { top: th.top, right: th.right, bottom: th.bottom, width: th.width, height: th.height },
-                autostartVisible: !!(aw && aw.width > 0 && aw.height > 0),
+                settingsMenuHiddenInitially: document.getElementById('settingsMenu').hidden,
+                soonCountInUi: document.querySelectorAll('#providerChips .soon, #providerPills .soon').length,
                 viewportHeight: window.innerHeight,
             };
         })()"""
         )
-        assert placement["autostartVisible"], f"Missing visible #autostartWrap: {placement}"
-        for key in ("help", "lang", "theme"):
+        assert placement["settingsMenuHiddenInitially"], f"Expected #settingsMenu hidden initially: {placement}"
+        assert placement["soonCountInUi"] == 0, f"Expected active providers only in topbar/filters: {placement}"
+        for key in ("settings", "help", "lang", "theme"):
             r = placement[key]
             assert r["width"] > 0 and r["height"] > 0, f"{key} has zero size: {placement}"
             assert r["top"] >= placement["topbar"]["top"] - 2, f"{key} above topbar: {placement}"
@@ -472,11 +551,31 @@ def run_cdp_e2e() -> None:
             assert r["right"] <= placement["topbar"]["right"] + 2, f"{key} outside topbar right: {placement}"
             assert r["top"] < placement["viewportHeight"] / 2, f"{key} not in top half: {placement}"
         assert (
-            placement["theme"]["right"] >= placement["lang"]["right"] >= placement["help"]["right"]
-        ), f"Expected #themeBtn rightmost, then #langBtn, then #helpBtn: {placement}"
+            placement["theme"]["right"]
+            >= placement["lang"]["right"]
+            >= placement["help"]["right"]
+            >= placement["settings"]["right"]
+        ), f"Expected #themeBtn rightmost, then #langBtn, #helpBtn, #settingsBtn: {placement}"
         assert placement["theme"]["right"] >= placement["topbar"]["right"] - 32, (
             f"Expected #themeBtn at far top-right edge: {placement}"
         )
+
+        # Open #settingsBtn -> verify #autostartWrap & #quitBtn inside #settingsMenu -> close with Escape
+        cdp.eval_js("document.getElementById('settingsBtn').click()")
+        _wait_cond(cdp, "!document.getElementById('settingsMenu').hidden", desc="settingsMenu open")
+        settings_snap = cdp.eval_js(
+            """(() => {
+            const aw = document.getElementById('autostartWrap')?.getBoundingClientRect();
+            const qb = document.getElementById('quitBtn')?.getBoundingClientRect();
+            return {
+                autostartVisible: !!(aw && aw.width > 0 && aw.height > 0),
+                quitVisible: !!(qb && qb.width > 0 && qb.height > 0),
+            };
+        })()"""
+        )
+        assert settings_snap["autostartVisible"] and settings_snap["quitVisible"], settings_snap
+        cdp.eval_js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
+        _wait_cond(cdp, "document.getElementById('settingsMenu').hidden", desc="settingsMenu closed via Escape")
 
         # 1b. Language switcher (#langBtn & #langMenu) with SVG flags, VI switch, reload persistence, EN restore
         lang_init = cdp.eval_js(
@@ -700,6 +799,128 @@ def run_cdp_e2e() -> None:
             desc="lang restored to en",
         )
 
+        # 1d. Basic (default) vs Advanced mode: hidden .adv-only, contextual SyncDir, includeAll chip, Auto-Sync summary, reload persistence
+        basic_snap = cdp.eval_js(
+            """(() => {
+            const isVis = (el) => !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
+            const cwdOpts = [...document.querySelectorAll('#cwdSelect option')].map(o => o.value);
+            return {
+                uiMode: document.documentElement.dataset.uiMode,
+                storedMode: localStorage.getItem('mcas.uiMode'),
+                basicBtnActive: document.querySelector('#uiModeSwitch button[data-ui-mode="basic"]')?.classList.contains('active'),
+                includeAllVisible: isVis(document.getElementById('includeAll')?.closest('label')),
+                syncDirHidden: document.getElementById('openSyncDirBtn')?.hidden,
+                hasCustomOpt: cwdOpts.includes('__custom__'),
+                idChipsVisible: [...document.querySelectorAll('#sessionList .adv-only')].some(isVis),
+                helpModeNote: document.querySelectorAll('#helpBody .help-mode-note').length,
+            };
+        })()"""
+        )
+        assert basic_snap["uiMode"] == "basic" and basic_snap["basicBtnActive"], basic_snap
+        assert not basic_snap["includeAllVisible"], f"Expected #includeAll hidden in Basic: {basic_snap}"
+        assert basic_snap["syncDirHidden"], f"Expected #openSyncDirBtn hidden without cwdFilter in Basic: {basic_snap}"
+        assert not basic_snap["hasCustomOpt"], f"Expected no __custom__ option in Basic: {basic_snap}"
+        assert not basic_snap["idChipsVisible"], f"Expected .adv-only row chips hidden in Basic: {basic_snap}"
+
+        # Selecting a folder filter reveals contextual #openSyncDirBtn in Basic, clearing hides it again
+        cdp.eval_js(
+            """(() => {
+            const sel = document.getElementById('cwdSelect');
+            const folderOpt = [...sel.options].find(o => o.value && o.value !== '__custom__');
+            sel.value = folderOpt.value;
+            sel.dispatchEvent(new Event('change'));
+        })()"""
+        )
+        _wait_cond(cdp, "!document.getElementById('openSyncDirBtn').hidden", desc="contextual SyncDir shown in Basic")
+        assert "Sync this folder" in cdp.eval_js("document.getElementById('openSyncDirLabel').textContent")
+        cdp.eval_js(
+            """(() => {
+            const sel = document.getElementById('cwdSelect');
+            sel.value = '';
+            sel.dispatchEvent(new Event('change'));
+        })()"""
+        )
+        _wait_cond(cdp, "document.getElementById('openSyncDirBtn').hidden", desc="contextual SyncDir hidden when folder cleared")
+
+        # Switch to Advanced -> enable includeAll & edit Auto-Sync -> switch back to Basic -> verify active chip & summary
+        cdp.eval_js("""document.querySelector('#uiModeSwitch button[data-ui-mode="advanced"]').click()""")
+        _wait_cond(cdp, "document.documentElement.dataset.uiMode === 'advanced'", desc="switch to advanced")
+        assert cdp.eval_js("localStorage.getItem('mcas.uiMode')") == "advanced"
+        assert cdp.eval_js("[...document.querySelectorAll('#cwdSelect option')].some(o => o.value === '__custom__')")
+        cdp.eval_js("document.getElementById('includeAll').click()")
+        _wait_cond(
+            cdp,
+            "[...document.querySelectorAll('#activeFilters .filter-chip')].some(c => c.textContent.includes('Incl. subagents'))",
+            desc="includeAll chip rendered",
+        )
+
+        # Configure non-default Auto-Sync draft in Advanced, switch to Basic, verify read-only summary + #asEditAdvBtn
+        cdp.eval_js("document.getElementById('tabBtnAutosync').click()")
+        _wait_cond(cdp, "!document.getElementById('panelAutosync').hidden", desc="autosync tab open")
+        as_dirs = cdp.eval_js("[...document.querySelectorAll('#asDirection option')].map(o => o.value)")
+        assert "agy_codex" in as_dirs and "claude_codex" in as_dirs and "codex2claude" in as_dirs, as_dirs
+        cdp.eval_js(
+            """(() => {
+            const sc = document.getElementById('asScope');
+            sc.value = 'watched';
+            sc.dispatchEvent(new Event('change'));
+            const iv = document.getElementById('asInterval');
+            iv.value = '60';
+            iv.dispatchEvent(new Event('change'));
+        })()"""
+        )
+        cdp.eval_js("""document.querySelector('#uiModeSwitch button[data-ui-mode="basic"]').click()""")
+        _wait_cond(cdp, "document.documentElement.dataset.uiMode === 'basic'", desc="switch back to basic")
+        as_sum = cdp.eval_js(
+            """(() => ({
+            summaryHidden: document.getElementById('asBasicSummary').hidden,
+            summaryText: document.getElementById('asBasicSummaryText').textContent,
+            dirtyVisible: !document.getElementById('asDirtyPill').hidden,
+            intervalVisible: getComputedStyle(document.getElementById('asInterval').closest('.field')).display !== 'none',
+        }))()"""
+        )
+        assert not as_sum["summaryHidden"] and "watched" in as_sum["summaryText"] and "60s" in as_sum["summaryText"], as_sum
+        assert as_sum["dirtyVisible"] and not as_sum["intervalVisible"], as_sum
+        cdp.eval_js("document.getElementById('asEditAdvBtn').click()")
+        _wait_cond(cdp, "document.documentElement.dataset.uiMode === 'advanced'", desc="asEditAdvBtn switches to advanced")
+
+        # Return to Sessions tab, verify includeAll chip clears includeAll in Basic, then reload in Advanced
+        cdp.eval_js("document.getElementById('tabBtnSessions').click()")
+        _wait_cond(cdp, "!document.getElementById('panelSessions').hidden", desc="sessions tab open")
+        cdp.eval_js("""document.querySelector('#uiModeSwitch button[data-ui-mode="basic"]').click()""")
+        _wait_cond(cdp, "document.documentElement.dataset.uiMode === 'basic'", desc="basic mode restored")
+        cdp.eval_js(
+            """(() => {
+            const chip = [...document.querySelectorAll('#activeFilters .filter-chip')].find(c => c.textContent.includes('Incl. subagents'));
+            chip.querySelector('button').click();
+        })()"""
+        )
+        _wait_cond(cdp, "!window.state.includeAll", desc="includeAll cleared via filter chip in Basic")
+
+        # Switch to Advanced and reload page to verify mcas.uiMode persists across reload
+        cdp.eval_js("""document.querySelector('#uiModeSwitch button[data-ui-mode="advanced"]').click()""")
+        _wait_cond(cdp, "document.documentElement.dataset.uiMode === 'advanced'", desc="advanced before reload")
+        cdp.call("Page.reload")
+        _wait_cond(
+            cdp,
+            "document.readyState === 'complete' && document.querySelectorAll('#sessionList .session-row').length >= 2",
+            desc="page reload in advanced mode",
+        )
+        assert cdp.eval_js("document.documentElement.dataset.uiMode === 'advanced' && localStorage.getItem('mcas.uiMode') === 'advanced'")
+
+        # 1e. Bulk selection bar progressive disclosure (#bulkOptionsBtn -> #bulkOptionsWrap in Advanced)
+        cdp.eval_js("document.querySelector('#sessionList .session-row input[type=\"checkbox\"]').click()")
+        _wait_cond(cdp, "!document.getElementById('selectionBar').hidden", desc="selectionBar shown")
+        assert cdp.eval_js("document.getElementById('bulkOptionsWrap').hidden"), "Expected #bulkOptionsWrap hidden by default"
+        cdp.eval_js("document.getElementById('bulkOptionsBtn').click()")
+        _wait_cond(cdp, "!document.getElementById('bulkOptionsWrap').hidden", desc="bulkOptionsWrap toggled open")
+        cdp.eval_js("document.getElementById('clearSelBtn').click()")
+        _wait_cond(cdp, "document.getElementById('selectionBar').hidden", desc="selectionBar cleared")
+
+        # Switch back to Basic (default) before running core workflow (Sort, Provider dropdown, Lighten, Cleanup)
+        cdp.eval_js("""document.querySelector('#uiModeSwitch button[data-ui-mode="basic"]').click()""")
+        _wait_cond(cdp, "document.documentElement.dataset.uiMode === 'basic'", desc="basic mode for core workflow")
+
         # 2. Sort by size descending -> Heavy UI Chat first
         cdp.eval_js(
             """(() => {
@@ -725,12 +946,13 @@ def run_cdp_e2e() -> None:
         dd_checks = cdp.eval_js(
             """[...document.querySelectorAll('.prov-dropdown-menu input[type="checkbox"]:not([disabled])')].map(c => c.checked)"""
         )
-        assert dd_checks[:2] == [True, True], f"Expected both checked initially, got {dd_checks}"
+        assert dd_checks[:3] == [True, True, False], f"Expected claude+agy checked, codex unchecked, got {dd_checks}"
 
         cdp.eval_js(
             """(() => {
             const rows = [...document.querySelectorAll('.prov-dropdown-menu .prov-dd-row')];
-            const agyCb = rows[1].querySelector('input[type="checkbox"]');
+            const agyRow = rows.find(r => r.textContent.includes('(agy)'));
+            const agyCb = agyRow.querySelector('input[type="checkbox"]');
             agyCb.checked = false;
             agyCb.dispatchEvent(new Event('change'));
             const applyBtn = [...document.querySelectorAll('.prov-dropdown-menu button')].find(b => b.textContent.startsWith('Apply'));
@@ -756,7 +978,8 @@ def run_cdp_e2e() -> None:
         cdp.eval_js(
             """(() => {
             const rows = [...document.querySelectorAll('.prov-dropdown-menu .prov-dd-row')];
-            const agyCb = rows[1].querySelector('input[type="checkbox"]');
+            const agyRow = rows.find(r => r.textContent.includes('(agy)'));
+            const agyCb = agyRow.querySelector('input[type="checkbox"]');
             agyCb.checked = true;
             agyCb.dispatchEvent(new Event('change'));
             const applyBtn = [...document.querySelectorAll('.prov-dropdown-menu button')].find(b => b.textContent.startsWith('Apply'));
@@ -826,7 +1049,7 @@ def run_cdp_e2e() -> None:
         # 7. Cleanup modal: Preview (Dry Run) + Clean Up Now
         cdp.eval_js("document.getElementById('openCleanupBtn').click()")
         _wait_cond(cdp, "!document.getElementById('cleanupModal').hidden", desc="cleanup modal open")
-        assert cdp.eval_js("document.querySelectorAll('#clStorageGrid .storage-stat').length === 4")
+        assert cdp.eval_js("document.querySelectorAll('#clStorageGrid .storage-stat').length === 5")
         cdp.eval_js(
             "document.getElementById('clEmpty').checked = true; document.getElementById('clPreviewBtn').click()"
         )

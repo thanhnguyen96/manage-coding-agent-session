@@ -7,20 +7,59 @@ import {
   formatRelative,
   formatResumeCmd,
   normalizePathKey,
+  providerBadgeClass,
 } from '../utils/format.js';
 import { copyText, toast } from '../components/toast.js';
 import { renderStatus } from '../render/status.js';
 import { fetchSessions, fetchStatus } from '../actions.js';
 import { t } from '../i18n.js';
 
+export function renderAutosyncBasicSummary() {
+  const box = $('asBasicSummary');
+  const textEl = $('asBasicSummaryText');
+  if (!box || !textEl) return;
+  const scope = $('asScope')?.value || 'all';
+  const interval = Number($('asInterval')?.value) || 30;
+  const includeThinking = !!$('asIncludeThinking')?.checked;
+  const parts = [];
+  if (scope === 'watched') {
+    const n = state.watchedDraft.length;
+    parts.push(t(n === 1 ? 'as.sumWatchedOne' : 'as.sumWatchedMany', { n }));
+  }
+  if (interval !== 30) {
+    parts.push(t('as.sumInterval', { s: interval }));
+  }
+  if (includeThinking) {
+    parts.push(t('as.sumThinking'));
+  }
+  if (!parts.length) {
+    box.hidden = true;
+    textEl.textContent = '';
+    return;
+  }
+  textEl.textContent = t('as.basicSummary', { parts: parts.join(' \u00b7 ') });
+  box.hidden = false;
+}
+
+export function syncAutosyncActionButtons() {
+  const saveBtn = $('asSaveBtn');
+  if (saveBtn) saveBtn.disabled = !state.autosyncDirty;
+  const syncBtn = $('asSyncNowBtn');
+  if (syncBtn) {
+    syncBtn.textContent = state.autosyncDirty ? t('as.saveAndSyncBtn') : t('as.syncNowBtn');
+  }
+}
+
 export function markAutosyncDirty() {
   state.autosyncDirty = true;
   $('asDirtyPill').hidden = false;
+  syncAutosyncActionButtons();
 }
 
 export function clearAutosyncDirty() {
   state.autosyncDirty = false;
   $('asDirtyPill').hidden = true;
+  syncAutosyncActionButtons();
 }
 
 export function collectAutosyncPayload(runNow = false) {
@@ -91,7 +130,11 @@ export function renderWatchedFolders(workspaces) {
     );
     const row = el('div', { className: 'watched-item' }, label);
     if (ws) {
-      row.append(el('span', { className: 'brand-sub', textContent: t('as.sessionsCount', { n: ws.total ?? 0 }) }));
+      const cnt = ws.total ?? 0;
+      row.append(el('span', {
+        className: 'brand-sub',
+        textContent: t(cnt === 1 ? 'as.sessionsCountOne' : 'as.sessionsCountMany', { n: cnt }),
+      }));
     } else {
       row.append(el('button', {
         type: 'button',
@@ -123,9 +166,11 @@ export function renderHistory(history) {
 
   for (const h of list) {
     const dirStr = h.direction || '';
-    const toProv = h.target || (dirStr.includes('claude') && !dirStr.endsWith('agy')
-      ? 'claude'
-      : dirStr.endsWith('agy') ? 'agy' : (h.toProvider || ''));
+    let toProv = h.target || h.toProvider || '';
+    if (!toProv && dirStr) {
+      const parts = dirStr.split(/2|->/).map((s) => s.trim()).filter(Boolean);
+      if (parts.length === 2) toProv = parts[1];
+    }
     const targetId = h.targetId || h.target_id || '';
     const sourceId = h.sourceId || h.source_id || '';
     const resumeCmd = h.resumeCmd || formatResumeCmd(toProv, targetId);
@@ -136,7 +181,7 @@ export function renderHistory(history) {
 
     const dirCell = el('td', {},
       el('span', {
-        className: 'pbadge ' + (toProv === 'agy' ? 'agy' : toProv === 'claude' ? 'claude' : 'other'),
+        className: 'pbadge ' + providerBadgeClass(toProv),
         textContent: dirStr || '-',
       }),
       h.kind ? el('div', { className: 'act-sub', textContent: h.kind, style: { marginTop: '3px' } }) : null
@@ -222,7 +267,9 @@ export function renderAutosyncStatus(as, workspaces) {
   // Only populate form inputs when user does not have unsaved edits
   if (!state.autosyncDirty) {
     $('asEnabled').checked = enabled;
-    $('asDirection').value = as.direction || 'both';
+    const dirSel = $('asDirection');
+    const dirVal = as.direction || 'both';
+    dirSel.value = [...dirSel.options].some((o) => o.value === dirVal) ? dirVal : 'both';
     const iv = String(as.intervalSec || 30);
     if (![...ivSel.options].some((o) => o.value === iv)) {
       ivSel.append(el('option', { value: iv, textContent: t('as.everySec', { s: iv }) }));
@@ -235,6 +282,8 @@ export function renderAutosyncStatus(as, workspaces) {
 
   renderWatchedFolders(workspaces);
   renderHistory(as.history || []);
+  renderAutosyncBasicSummary();
+  syncAutosyncActionButtons();
 }
 
 export async function saveAutosync(runNow = false) {
@@ -264,22 +313,31 @@ export async function saveAutosync(runNow = false) {
 export function initAutosyncPanel() {
   $('asEnabled').onchange = markAutosyncDirty;
   $('asDirection').onchange = markAutosyncDirty;
-  $('asInterval').onchange = markAutosyncDirty;
-  $('asIncludeThinking').onchange = markAutosyncDirty;
+  $('asInterval').onchange = () => {
+    markAutosyncDirty();
+    renderAutosyncBasicSummary();
+  };
+  $('asIncludeThinking').onchange = () => {
+    markAutosyncDirty();
+    renderAutosyncBasicSummary();
+  };
   $('asScope').onchange = () => {
     markAutosyncDirty();
     renderWatchedFolders(state.status ? state.status.workspaces : []);
+    renderAutosyncBasicSummary();
   };
   $('watchAllBtn').onclick = () => {
     const ws = (state.status && state.status.workspaces) || [];
     state.watchedDraft = ws.map((w) => w.cwd).filter(Boolean);
     markAutosyncDirty();
     renderWatchedFolders(ws);
+    renderAutosyncBasicSummary();
   };
   $('watchClearBtn').onclick = () => {
     state.watchedDraft = [];
     markAutosyncDirty();
     renderWatchedFolders(state.status ? state.status.workspaces : []);
+    renderAutosyncBasicSummary();
   };
   $('watchAddBtn').onclick = () => {
     const p = $('watchAddInput').value.trim();
@@ -288,6 +346,7 @@ export function initAutosyncPanel() {
       state.watchedDraft.push(p);
       markAutosyncDirty();
       renderWatchedFolders(state.status ? state.status.workspaces : []);
+      renderAutosyncBasicSummary();
     }
     $('watchAddInput').value = '';
   };

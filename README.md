@@ -1,8 +1,8 @@
 # manage-coding-agent-session (`mcas`)
 
-Browse, inspect, copy, and automatically sync coding-agent conversation sessions across **Antigravity CLI (`agy`)** and **Claude Code CLI (`claude`)** — via CLI, Web GUI, and Windows system tray.
+Browse, inspect, copy, and automatically sync coding-agent conversation sessions across **Antigravity CLI (`agy`)**, **Claude Code CLI (`claude`)**, and **Codex CLI (`codex`)** — via CLI, Web GUI, and Windows system tray.
 
-> **Unofficial.** Not affiliated with Google or Anthropic. Zero third-party runtime dependencies (Python 3.10+ standard library + built-in Windows PowerShell 5.1 for the Windows tray).
+> **Unofficial.** Not affiliated with Google, Anthropic, or OpenAI. Zero third-party runtime dependencies (Python 3.10+ standard library + built-in Windows PowerShell 5.1 for the Windows tray).
 
 ## Supported Providers
 
@@ -10,8 +10,8 @@ Browse, inspect, copy, and automatically sync coding-agent conversation sessions
 |---|---|---|
 | **Antigravity CLI (`agy`)** | Supported | `%USERPROFILE%\.gemini\antigravity-cli\conversations\*.db` + `conversation_summaries.db` |
 | **Claude Code CLI (`claude`)** | Supported | `%USERPROFILE%\.claude\projects\<slug>\*.jsonl` |
+| **Codex CLI (`codex`)** | Supported | `%USERPROFILE%\.codex\sessions\YYYY\MM\DD\rollout-*.jsonl`, `archived_sessions\*.jsonl`, `state_5.sqlite` |
 | **OpenCode (`opencode`)** | Planned (`Coming Soon`) | Architecture ready via `AgentProvider` registry |
-| **Codex CLI (`codex`)** | Planned (`Coming Soon`) | Architecture ready via `AgentProvider` registry |
 
 ## Requirements
 
@@ -33,7 +33,7 @@ Or install directly with `uv`:
 uv tool install git+https://github.com/thanhnguyen96/manage-coding-agent-session
 ```
 
-Pin a specific git tag, branch, or commit with `$env:MCAS_REF = 'v0.2.0'` before running `install.ps1`.
+Pin a specific git tag, branch, or commit with `$env:MCAS_REF = 'v0.3.0'` before running `install.ps1`.
 
 Prefer to inspect `install.ps1` first?
 
@@ -57,6 +57,7 @@ Open a new terminal afterwards so `mcas` is on your `PATH`.
 | `MCAS_AGY_DIR` | `~/.gemini/antigravity-cli` | Override Antigravity CLI data directory |
 | `MCAS_AGY_IDE_DIR` | `~/.gemini/antigravity` | Override Antigravity IDE data directory |
 | `MCAS_CLAUDE_DIR` | `~/.claude` | Override Claude Code data directory |
+| `MCAS_CODEX_DIR` | `~/.codex` | Override Codex CLI data directory |
 
 </details>
 
@@ -74,9 +75,9 @@ mcas ui stop           # stop the server and remove the tray icon
 The Web UI binds strictly to `127.0.0.1`, verifies `Host` headers, and authenticates all `/api/*` endpoints with a per-session `X-Mcas-Token`.
 
 **Web UI features:**
-- **Bilingual (`EN` / `VI`), Theme Toggle & Visual Help**: Top-right utility bar includes **`? Help`** (shortcut `?`) with an annotated visual guide & FAQ, an **`EN / VI`** flag dropdown for live English / Tiếng Việt switching (persisted in `localStorage`), and a top-right **Light / Dark** theme toggle. See also the illustrated Vietnamese walkthrough in [docs/ui-guide.md](docs/ui-guide.md).
-- **Conversations, Provider Sync & Cleanup**: Synced conversations across providers merge into a single row with a tag like `(claude, agy)`. Use the **Providers** checkbox dropdown on any row to add (`+ Add`), remove (`- Remove`), or untick all checkboxes & click **Apply** (with a delete confirmation dialog) to delete completely; sort by newest, largest size, or turn count; **Lighten** bulky conversations in-place (keep newest 50%/N turns, truncate tool outputs, purge heavy brain/subagent sidecars); bulk **Copy Selected** / **Delete Selected**; 1-click **Sync folder** modal; **Clean Up** storage modal (dry-run preview, orphans, empty/subagent/old/large sessions, SQLite `VACUUM`); and slide-over **Preview** drawer with provider tabs, size breakdown, collapsible `<thought>` blocks, tool calls/results, and copyable `Resume Dir` / `Resume Cmd`.
-- **Auto-Sync & Activity**: Enable/disable background bidirectional sync, configure direction, check interval (`10s`-`300s`), scope (`All workspaces` vs `Selected folders only`), `<thought>` folding, trigger **Sync Now**, and review recent sync activity with target resume commands.
+- **Basic / Advanced Modes, Bilingual (`EN` / `VI`), Theme Toggle & Visual Help**: Defaults to **Basic** mode with safe defaults for daily use and includes a one-click **Basic / Advanced** toggle on the tab bar to reveal power filters, custom folder overrides, `<thought>` options, and watched-folder Auto-Sync settings. Top-right utility bar includes a **Settings** gear menu (**Start with Windows** & **Stop server**), **`? Help`** (shortcut `?`) with an annotated visual guide & FAQ, an **`EN / VI`** flag dropdown for live English / Tiếng Việt switching (persisted in `localStorage`), and a **Light / Dark** theme toggle. See also the illustrated walkthrough in [docs/ui-guide.md](docs/ui-guide.md).
+- **Conversations, Provider Sync & Cleanup**: Synced conversations across providers merge into a single row with a tag like `(claude, agy, codex)`. Use the **Providers** checkbox dropdown on any row to add (`+ Add`), remove (`- Remove`), or untick all checkboxes & click **Apply** (with a delete confirmation dialog) to delete completely; sort by newest, largest size, or turn count; **Lighten** bulky conversations in-place (keep newest 50%/N turns, truncate tool outputs, purge heavy brain/subagent sidecars); bulk **Copy Selected** / **Delete Selected**; 1-click **Sync folder** modal; **Clean Up** storage modal (dry-run preview, orphans, empty/subagent/old/large sessions, SQLite `VACUUM` for `agy`); and slide-over **Preview** drawer with provider tabs, target copy selector, size breakdown, collapsible `<thought>` blocks, tool calls/results, and copyable `Resume Dir` / `Resume Cmd`.
+- **Auto-Sync & Activity**: Enable/disable background 2-way or 3-way sync, configure direction (`both` across all active providers, pair-specific like `agy_codex`, or 1-way like `claude2codex`), check interval (`10s`-`300s`), scope (`All workspaces` vs `Selected folders only`), `<thought>` folding, trigger **Sync Now**, and review recent sync activity with target resume commands.
 
 **System Tray icon** (Windows, while the server runs):
 - **Left-click**: Open Web UI in your browser
@@ -90,19 +91,19 @@ The Web UI binds strictly to `127.0.0.1`, verifies `Host` headers, and authentic
 ## CLI Usage
 
 ```powershell
-# List recent top-level sessions across agy and claude
+# List recent top-level sessions across agy, claude, and codex
 mcas list
-mcas list --cwd C:\path\to\project --source agy --limit 20
+mcas list --cwd C:\path\to\project --source codex --limit 20
 mcas list --q "auth" --all --json
 
 # Copy a single conversation between providers (supports UUID, prefix, or 'latest')
 mcas copy latest --to claude
-mcas copy <id_or_prefix> --to agy --from claude --new-id --include-thinking
+mcas copy <id_or_prefix> --to codex --from claude --new-id --include-thinking
 mcas agy2claude <conv_id> --target-cwd C:\other\repo
 mcas claude2agy <session_id> --overwrite
 
 # Copy all top-level sessions for a workspace folder from one provider to another
-mcas sync-dir --from agy --to claude --cwd C:\path\to\project
+mcas sync-dir --from claude --to codex --cwd C:\path\to\project
 
 # Inspect metadata/turns/size, delete (single, bulk, or synced peers), lighten, or clean up
 mcas list --sort size
@@ -143,6 +144,7 @@ Auto-Sync maintains a pairing ledger in `%LOCALAPPDATA%\mcas\sync_state.json`:
 - **Direct SQLite + protobuf reads/writes for `agy`**: Reads `steps` (`ORDER BY idx`) directly from `.db` files (avoiding `transcript.jsonl` formatting differences) and updates both `conversation_summaries` and `conversations_fts` (`chunk_index = -1` and `0`) cleanly, unlinking stale `-wal`/`-shm` sidecars on `--overwrite`.
 - **Anthropic replay invariants for `claude`**: Sanitizes tool IDs/names to `^[a-zA-Z0-9_-]{1,64}$`, ensures dict tool inputs, enforces `user`/`assistant` alternation, and synthesizes `tool_result`s for interrupted calls.
 - **Claude workspace directory matching**: `claude --resume <id>` only looks inside `~/.claude/projects/<slug_of_current_cwd>/`. When targeting a workspace different from your current directory, `mcas` writes to the target slug and prints both `Resume Dir` (`cd "<target>"`) and `claude --resume <id>`.
+- **Codex CLI (`codex`) rollout & SQLite index**: Reads `rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl` under `sessions/` (plus `archived_sessions/` when `--all` is passed) alongside `session_index.jsonl` and `state_5.sqlite` (`threads`), normalizing Windows `\\?\` extended-length UNC paths in `cwd`. On writes, `mcas` writes atomic legacy rollout JSONL, upserts `state_5.sqlite` (`history_mode='legacy'`) via `UPDATE`/`INSERT` (preserving foreign-key children and paginated threads), and prints `Resume Dir` + `codex resume <id>` when targeting another folder.
 - **Thinking blocks**: By default, raw thinking is not injected into visible assistant text. Pass `--include-thinking` (or enable **Include `<thought>`**) to fold reasoning into `<thought>...</thought>` assistant text so it remains visible upon resume.
 
 ## Project Layout
@@ -159,6 +161,7 @@ src/mcas/
     base.py, __init__.py     # AgentProvider ABC, FutureProvider, provider registry
     agy/                     # schema, pb_builders, storage, provider
     claude/                  # storage, convert, provider
+    codex/                   # storage, convert, provider
   sync/                      # state.py (sync_state.json), copy.py, autosync.py
   services/                  # query.py, delete.py, trim.py, clean.py
   server/
@@ -172,7 +175,7 @@ src/mcas/
     launcher.py              # open_ui / stop_ui / update / uninstall
     tray.ps1                 # Windows PowerShell WinForms system tray host
 docs/
-  ui-guide.md                # Annotated visual Web UI guide (Vietnamese)
+  ui-guide.md                # Annotated visual Web UI guide
 tests/                       # pytest unit/integration/API suite, CDP browser E2E, Windows sandbox E2E
 ```
 

@@ -15,7 +15,14 @@ from mcas.services import delete as delete_svc
 from mcas.services import query as query_svc
 from mcas.services import trim as trim_svc
 from mcas.sync import autosync as autosync_svc
-from tests.fixtures.seed import claude_slug, make_agy_db, seed_heavy_and_clean_fixtures
+from tests.fixtures.seed import (
+    claude_slug,
+    make_agy_db,
+    make_claude_jsonl,
+    make_codex_empty_jsonl,
+    make_codex_jsonl,
+    seed_heavy_and_clean_fixtures,
+)
 
 
 def _run_cli_json(argv: list[str], capsys: pytest.CaptureFixture[str]) -> tuple[int, object]:
@@ -143,25 +150,33 @@ def test_autosync_cli_and_loop_free_reverse_propagation(
         include_thinking=False,
     )
     run1 = autosync_svc.run_autosync_cycle(force_even_if_disabled=True)
-    assert run1["synced"] == 1
+    assert run1["synced"] == 2
 
     ws_c_claude_dir = sandbox.claude_dir / "projects" / claude_slug(sandbox.ws_c)
     files1 = list(ws_c_claude_dir.glob("*.jsonl"))
     assert len(files1) == 1
     target_file = files1[0]
     stat1 = target_file.stat()
+
+    codex_files1 = list((sandbox.codex_dir / "sessions").rglob("*.jsonl"))
+    assert len(codex_files1) == 1
+    codex_target = codex_files1[0]
+    codex_stat1 = codex_target.stat()
     hist1 = len(autosync_svc.get_autosync_dict()["history"])
 
-    # Second immediate cycle MUST be a complete no-op
+    # Second immediate cycle MUST be a complete no-op across all 3 providers
     time.sleep(0.05)
     run2 = autosync_svc.run_autosync_cycle(force_even_if_disabled=True)
     stat2 = target_file.stat()
+    codex_stat2 = codex_target.stat()
     assert run2["synced"] == 0
     assert stat2.st_mtime_ns == stat1.st_mtime_ns
     assert stat2.st_size == stat1.st_size
+    assert codex_stat2.st_mtime_ns == codex_stat1.st_mtime_ns
+    assert codex_stat2.st_size == codex_stat1.st_size
     assert len(autosync_svc.get_autosync_dict()["history"]) == hist1
 
-    # Append a new turn on the Claude side and confirm reverse propagation
+    # Append a new turn on the Claude side and confirm reverse propagation to AGY and Codex
     extra_turns = [
         {
             "type": "user",
@@ -193,9 +208,13 @@ def test_autosync_cli_and_loop_free_reverse_propagation(
             fh.write(json.dumps(row) + "\n")
 
     run3 = autosync_svc.run_autosync_cycle(force_even_if_disabled=True)
-    assert run3["synced"] >= 1
+    assert run3["synced"] >= 2
     agy_detail = query_svc.get_session_detail("agy", agy_auto_id)
     assert any("Follow-up turn from Claude side" in t["text"] for t in agy_detail["turns"])
+    codex_list = query_svc.query_sessions_api(source="codex", cwd=str(sandbox.ws_c))["sessions"]
+    assert len(codex_list) == 1
+    codex_detail = query_svc.get_session_detail("codex", codex_list[0]["id"])
+    assert any("Follow-up turn from Claude side" in t["text"] for t in codex_detail["turns"])
 
     # Fourth cycle after reverse update must also be loop-free
     hist3 = len(autosync_svc.get_autosync_dict()["history"])
@@ -291,3 +310,146 @@ def test_size_sort_trim_clean_and_delete_synced_peers(
     assert del_res["ok"] is True
     assert del_res["deletedCount"] >= 2
     assert not paired_claude_path.exists()
+
+
+def test_codex_cli_cross_provider_sync_and_3way_shared_autosync(
+    seeded_sandbox, capsys: pytest.CaptureFixture[str]
+) -> None:
+    sb, ids = seeded_sandbox
+    codex_id = "91111111-1111-4111-8111-111111111111"
+    codex_empty_id = "92222222-2222-4222-8222-222222222222"
+    make_codex_jsonl(
+        sb.codex_dir,
+        codex_id,
+        sb.ws_a,
+        "Phở bò Codex 2026 prompt",
+        "Codex internal thought",
+        "Codex reply TOKEN_CODEX_7755",
+        "2026-11-15T09:00:00.000Z",
+        include_tools=True,
+        upsert_sqlite=True,
+    )
+    make_codex_empty_jsonl(sb.codex_dir, codex_empty_id, sb.ws_a, "2026-11-15T09:01:00.000Z")
+
+    # CLI list & inspect for codex
+    rc, codex_rows = _run_cli_json(["list", "--source", "codex", "--json"], capsys)
+    assert rc == 0
+    assert len(codex_rows) == 1
+    assert codex_rows[0]["id"] == codex_id
+
+    rc, codex_insp = _run_cli_json(["inspect", codex_id, "--source", "codex", "--json"], capsys)
+    assert rc == 0
+    assert codex_insp["resumeCmd"] == f"codex resume {codex_id}"
+    assert any("TOKEN_CODEX_7755" in t["text"] for t in codex_insp["turns"])
+
+    # Cross-provider copy: claude <-> codex and agy <-> codex
+    rc, cl2cx = _run_cli_json(
+        ["copy", ids["claude_a_id"], "--from", "claude", "--to", "codex", "--new-id", "--json"],
+        capsys,
+    )
+    assert rc == 0 and cl2cx["ok"] is True
+    assert Path(cl2cx["path"]).is_file()
+    assert cl2cx["resumeCmd"].startswith("codex resume ")
+
+    rc, cx2cl = _run_cli_json(
+        ["copy", codex_id, "--from", "codex", "--to", "claude", "--new-id", "--include-thinking", "--json"],
+        capsys,
+    )
+    assert rc == 0 and cx2cl["ok"] is True
+    assert "<thought>" in Path(cx2cl["path"]).read_text(encoding="utf-8")
+
+    rc, ag2cx = _run_cli_json(
+        ["copy", ids["agy_id"], "--from", "agy", "--to", "codex", "--new-id", "--include-thinking", "--json"],
+        capsys,
+    )
+    assert rc == 0 and ag2cx["ok"] is True
+    assert "<thought>" in Path(ag2cx["path"]).read_text(encoding="utf-8")
+
+    rc, cx2ag = _run_cli_json(
+        ["copy", codex_id, "--from", "codex", "--to", "agy", "--new-id", "--json"],
+        capsys,
+    )
+    assert rc == 0 and cx2ag["ok"] is True
+    assert Path(cx2ag["path"]).is_file()
+
+    # Sync-dir codex -> claude on ws_a
+    rc, sd_res = _run_cli_json(
+        ["sync-dir", "--from", "codex", "--to", "claude", "--cwd", str(sb.ws_a), "--json"],
+        capsys,
+    )
+    assert rc == 0 and len(sd_res["results"]) >= 1
+
+    # Trim codex session & clean empty codex session via CLI
+    rc, tr_res = _run_cli_json(
+        ["trim", codex_id, "--source", "codex", "--keep-turns", "2", "--yes", "--json"],
+        capsys,
+    )
+    assert rc == 0 and tr_res["ok"] is True
+
+    rc, cl_res = _run_cli_json(
+        ["clean", "--source", "codex", "--empty", "--yes", "--json"],
+        capsys,
+    )
+    assert rc == 0 and cl_res["ok"] is True and cl_res["sessionsDeleted"] >= 1
+
+    # Paired delete across codex -> claude/agy peers
+    del_res = delete_svc.delete_sessions_batch(
+        [{"source": "codex", "id": codex_id}],
+        delete_synced_peers=True,
+    )
+    assert del_res["ok"] is True
+    assert del_res["deletedCount"] >= 2
+    assert not Path(cx2cl["path"]).exists()
+
+    # 3-way shared_unpaired autosync on ws_c (same UUID across agy, claude, codex)
+    shared_id = "93333333-3333-4333-8333-333333333333"
+    make_agy_db(
+        sb.agy_dir,
+        shared_id,
+        sb.ws_c,
+        "Shared 3-way",
+        "Shared prompt",
+        "",
+        "Shared AGY reply",
+        1763113000,
+    )
+    make_claude_jsonl(
+        sb.claude_dir,
+        shared_id,
+        sb.ws_c,
+        "Shared prompt",
+        "Shared Claude reply",
+        "2026-11-14T09:30:00.000Z",
+    )
+    make_codex_jsonl(
+        sb.codex_dir,
+        shared_id,
+        sb.ws_c,
+        "Shared prompt",
+        "",
+        "Shared Codex reply",
+        "2026-11-14T09:29:00.000Z",
+        include_tools=False,
+    )
+    autosync_svc.update_autosync_config(
+        enabled=False,
+        direction="both",
+        scope="watched",
+        watched_folders=[str(sb.ws_c)],
+        include_thinking=False,
+    )
+    r1 = autosync_svc.run_autosync_cycle(force_even_if_disabled=True)
+    assert r1["errors"] == 0
+    r2 = autosync_svc.run_autosync_cycle(force_even_if_disabled=True)
+    assert r2["synced"] == 0 and r2["errors"] == 0
+
+    # Verify pair-specific and 1-way Codex autosync routes normalize and run cleanly
+    cfg_pair = autosync_svc.update_autosync_config(direction="agy<->codex")
+    assert cfg_pair["direction"] == "agy_codex"
+    r_pair = autosync_svc.run_autosync_cycle(force_even_if_disabled=True)
+    assert r_pair["synced"] == 0 and r_pair["errors"] == 0
+
+    cfg_oneway = autosync_svc.update_autosync_config(direction="codex2claude")
+    assert cfg_oneway["direction"] == "codex2claude"
+    r_oneway = autosync_svc.run_autosync_cycle(force_even_if_disabled=True)
+    assert r_oneway["synced"] == 0 and r_oneway["errors"] == 0

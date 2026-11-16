@@ -1,6 +1,6 @@
-import { state } from './state.js';
+import { isAdvanced, state } from './state.js';
 import { el } from './utils/dom.js';
-import { providerLabel } from './utils/format.js';
+import { providerDotClass, providerLabel, supportedProviderIds } from './utils/format.js';
 import { renderSessions } from './render/sessionList.js';
 import { applyGroupProviders } from './actions.js';
 import { t } from './i18n.js';
@@ -23,7 +23,8 @@ export function buildProviderTagButton(g, onToggle) {
     },
   });
   for (const p of g.providers) {
-    btn.append(el('span', { className: 'prov-tag-dot ' + (p === 'agy' ? 'agy' : p === 'claude' ? 'claude' : '') }));
+    const cls = providerDotClass(p);
+    btn.append(el('span', { className: 'prov-tag-dot' + (cls ? ' ' + cls : '') }));
   }
   btn.append(el('span', { textContent: `(${g.providers.join(', ')})` }));
   return btn;
@@ -36,7 +37,7 @@ export function buildProviderDropdownMenu(g) {
   });
   menu.append(el('div', { className: 'prov-dd-title', textContent: t('dd.title') }));
 
-  const supportedIds = ['claude', 'agy'];
+  const supportedIds = supportedProviderIds(state.status && state.status.providers);
   const cbMap = {};
   const badgeMap = {};
 
@@ -50,10 +51,11 @@ export function buildProviderDropdownMenu(g) {
     });
     badgeMap[pid] = badge;
 
+    const dotCls = providerDotClass(pid);
     const rowLabel = el('label', { className: 'prov-dd-row' },
       el('span', { className: 'prov-dd-left' },
         cb,
-        el('span', { className: 'prov-tag-dot ' + pid }),
+        el('span', { className: 'prov-tag-dot' + (dotCls ? ' ' + dotCls : '') }),
         el('span', { textContent: `${providerLabel(pid)} (${pid})` })
       ),
       badge
@@ -61,18 +63,8 @@ export function buildProviderDropdownMenu(g) {
     menu.append(rowLabel);
   }
 
-  for (const soonId of ['opencode', 'codex']) {
-    menu.append(el('div', { className: 'prov-dd-row disabled' },
-      el('span', { className: 'prov-dd-left' },
-        el('input', { type: 'checkbox', disabled: true }),
-        el('span', { textContent: `${providerLabel(soonId)} (${soonId})` })
-      ),
-      el('span', { className: 'prov-dd-badge', textContent: t('filter.soon') })
-    ));
-  }
-
   const thoughtCb = el('input', { type: 'checkbox' });
-  const optsWrap = el('div', { className: 'prov-dd-opts', hidden: true },
+  const optsWrap = el('div', { className: 'prov-dd-opts adv-only', hidden: true },
     el('label', { className: 'check' }, thoughtCb, el('span', { textContent: t('dd.includeThought') }))
   );
   menu.append(optsWrap);
@@ -141,7 +133,7 @@ export function buildProviderDropdownMenu(g) {
   };
   applyBtn.onclick = () => {
     const desired = supportedIds.filter((pid) => cbMap[pid].checked);
-    applyGroupProviders(g, desired, thoughtCb.checked);
+    applyGroupProviders(g, desired, isAdvanced() && thoughtCb.checked);
   };
   syncMenuState();
   return menu;

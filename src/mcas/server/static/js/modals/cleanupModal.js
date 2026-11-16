@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { isAdvanced, state } from '../state.js';
 import { api } from '../api.js';
 import { $, el } from '../utils/dom.js';
 import { withBusy } from '../utils/busy.js';
@@ -13,7 +13,7 @@ export function renderStorageSummaryGrid() {
   const host = $('clStorageGrid');
   const st = (state.status && state.status.storage) || {};
   host.replaceChildren(
-    el('div', { className: 'storage-stat' },
+    el('div', { className: 'storage-stat wide' },
       el('span', { className: 'lbl', textContent: t('cleanup.totalStorage') }),
       el('span', { className: 'val', textContent: st.totalHuman || '0 B' })
     ),
@@ -24,6 +24,10 @@ export function renderStorageSummaryGrid() {
     el('div', { className: 'storage-stat' },
       el('span', { className: 'lbl', textContent: t('cleanup.claudeLabel') }),
       el('span', { className: 'val', textContent: st.claudeHuman || '0 B' })
+    ),
+    el('div', { className: 'storage-stat' },
+      el('span', { className: 'lbl', textContent: t('cleanup.codexLabel') }),
+      el('span', { className: 'val', textContent: st.codexHuman || '0 B' })
     ),
     el('div', { className: 'storage-stat' },
       el('span', { className: 'lbl', textContent: t('cleanup.orphansSummaryLabel') }),
@@ -45,11 +49,13 @@ export function openCleanupModal() {
 }
 
 export async function runStorageClean(dryRun) {
-  const olderRaw = $('clOlderDays').value.trim();
-  const largerRaw = $('clLargerMb').value.trim();
+  const adv = isAdvanced();
+  const olderRaw = adv ? $('clOlderDays').value.trim() : '';
+  const largerRaw = adv ? $('clLargerMb').value.trim() : '';
+  const scopeVal = adv ? $('clScope').value : 'all';
   const payload = {
     source: state.sourceFilter || 'all',
-    cwd: $('clScope').value === 'cwd' ? (state.cwdFilter || '') : '',
+    cwd: scopeVal === 'cwd' ? (state.cwdFilter || '') : '',
     cleanOrphans: $('clOrphans').checked,
     deleteEmpty: $('clEmpty').checked,
     deleteSubagents: $('clSubagents').checked,
@@ -82,7 +88,7 @@ export async function runStorageClean(dryRun) {
           ul.append(el('li', { textContent: t('cleanup.nothingMatched') }));
         } else {
           for (const it of items.slice(0, 60)) {
-            ul.append(el('li', { textContent: `[${it.kind || ''}] ${it.label || ''} (${it.sizeHuman || '0 B'})` }));
+            ul.append(el('li', { textContent: `[${it.kind || ''}] ${it.label || ''} (${it.human || it.sizeHuman || '0 B'})` }));
           }
           if (items.length > 60) {
             ul.append(el('li', { textContent: t('cleanup.moreItems', { n: items.length - 60 }) }));

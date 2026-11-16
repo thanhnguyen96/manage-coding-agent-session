@@ -18,6 +18,7 @@ $env:MCAS_PORT = '47899'
 $env:MCAS_AGY_DIR = Join-Path $sb 'agy-cli'
 $env:MCAS_AGY_IDE_DIR = Join-Path $sb 'agy-ide'
 $env:MCAS_CLAUDE_DIR = Join-Path $sb 'claude'
+$env:MCAS_CODEX_DIR = Join-Path $sb 'codex'
 $env:MCAS_SOURCE = $repo
 $env:UV_TOOL_DIR = Join-Path $sb 'uv-tools'
 $env:UV_TOOL_BIN_DIR = Join-Path $sb 'uv-bin'

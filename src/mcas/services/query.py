@@ -17,12 +17,7 @@ from mcas.providers import (
     get_provider,
     get_supported_providers,
 )
-from mcas.providers.agy.storage import (
-    _find_agy_descendants,
-    get_agy_session_size,
-)
 from mcas.providers.base import AgentProvider
-from mcas.providers.claude.storage import get_claude_session_size
 from mcas.services.clean import get_storage_summary
 from mcas.sync.state import (
     _SYNC_LOCK,
@@ -88,11 +83,13 @@ def _build_synced_to_lookup(
             add_link(t, tid, s, sid)
 
     # Also detect identical-UUID pairs created externally before ledger existed
-    agy_ids = set(all_summaries_by_provider.get("agy", {}).keys())
-    claude_ids = set(all_summaries_by_provider.get("claude", {}).keys())
-    for shared_id in agy_ids & claude_ids:
-        add_link("agy", shared_id, "claude", shared_id)
-        add_link("claude", shared_id, "agy", shared_id)
+    pids = [p.id for p in get_supported_providers()]
+    id_sets = {pid: set(all_summaries_by_provider.get(pid, {}).keys()) for pid in pids}
+    for i, pid_a in enumerate(pids):
+        for pid_b in pids[i + 1 :]:
+            for shared_id in id_sets[pid_a] & id_sets[pid_b]:
+                add_link(pid_a, shared_id, pid_b, shared_id)
+                add_link(pid_b, shared_id, pid_a, shared_id)
 
     return lookup
 
@@ -235,16 +232,9 @@ def get_session_detail(source: str | None, session_id: str) -> dict[str, Any]:
     }
     synced_lookup = _build_synced_to_lookup(all_by_prov_map)
 
-    if prov.id == "agy":
-        app_dir = "antigravity" if (summary and "antigravity" in summary.extra.split(",")) else "antigravity-cli"
-        child_ids = _find_agy_descendants(session.session_id)
-        size_bytes, main_bytes, sidecar_bytes = get_agy_session_size(
-            session.session_id, db_path=loc, child_ids=child_ids, app_data_dir=app_dir
-        )
-    else:
-        size_bytes, main_bytes, sidecar_bytes = get_claude_session_size(
-            session.session_id, jsonl_path=loc
-        )
+    size_bytes, main_bytes, sidecar_bytes = prov.get_session_size(
+        session.session_id, loc, summary=summary
+    )
 
     turns_json = []
     for i, t in enumerate(session.turns):
@@ -322,13 +312,7 @@ def get_status_dict(port: int | None = None) -> dict[str, Any]:
 
     for pid, prov in PROVIDERS.items():
         slist = by_prov.get(pid, [])
-        psize = (
-            storage["agyBytes"]
-            if pid == "agy"
-            else storage["claudeBytes"]
-            if pid == "claude"
-            else 0
-        )
+        psize = int(storage.get(f"{pid}Bytes") or 0)
         providers_out.append(prov.descriptor(count=len(slist), size_bytes=psize))
         for s in slist:
             if not s.cwd:

@@ -1,4 +1,5 @@
 export const state = {
+  uiMode: 'basic',
   tab: 'sessions',
   status: null,
   sessions: [],
@@ -26,6 +27,10 @@ export const state = {
   connFailures: 0,
   stopped: false,
 };
+
+export function isAdvanced() {
+  return state.uiMode === 'advanced';
+}
 
 // Expose state on window for DevTools inspection and CDP E2E tests.
 if (typeof window !== 'undefined') {

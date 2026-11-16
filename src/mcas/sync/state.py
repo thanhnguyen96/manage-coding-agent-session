@@ -38,6 +38,55 @@ def _default_state() -> dict[str, Any]:
         "history": [],
     }
 
+def parse_direction_routes(
+    direction: str | None, *, strict: bool = False
+) -> tuple[str, list[tuple[str, str]]]:
+    """Resolve an auto-sync direction token into `(canonical_direction, directed_routes)`."""
+    from mcas.providers import get_supported_providers
+
+    supported = [p.id for p in get_supported_providers()]
+    supported_set = set(supported)
+    d = (direction or "both").strip().lower()
+
+    if d in ("both", "all"):
+        routes = [(a, b) for a in supported for b in supported if a != b]
+        return "both", routes
+
+    if "2" in d:
+        parts = d.split("2", 1)
+        if (
+            len(parts) == 2
+            and parts[0] in supported_set
+            and parts[1] in supported_set
+            and parts[0] != parts[1]
+        ):
+            return f"{parts[0]}2{parts[1]}", [(parts[0], parts[1])]
+
+    for sep in ("<->", "_", "-"):
+        if sep in d:
+            parts = d.split(sep, 1)
+            if (
+                len(parts) == 2
+                and parts[0] in supported_set
+                and parts[1] in supported_set
+                and parts[0] != parts[1]
+            ):
+                a, b = sorted((parts[0], parts[1]))
+                return f"{a}_{b}", [(a, b), (b, a)]
+
+    if strict:
+        pair_tokens = ", ".join(
+            f"{supported[i]}_{supported[j]}"
+            for i in range(len(supported))
+            for j in range(i + 1, len(supported))
+        )
+        raise SyncError(
+            f"Invalid direction '{direction}'. Use 'both', a pair ({pair_tokens}), "
+            "or '<src>2<tgt>'."
+        )
+    return "both", [(a, b) for a in supported for b in supported if a != b]
+
+
 def _normalize_config(raw: dict[str, Any] | None) -> dict[str, Any]:
     d = _default_state()["config"]
     if not isinstance(raw, dict):
@@ -49,9 +98,7 @@ def _normalize_config(raw: dict[str, Any] | None) -> dict[str, Any]:
         interval = d["intervalSec"]
     interval = max(5, interval)
 
-    direction = str(raw.get("direction", d["direction"])).strip().lower()
-    if direction not in ("both", "agy2claude", "claude2agy"):
-        direction = d["direction"]
+    direction, _ = parse_direction_routes(str(raw.get("direction", d["direction"])), strict=False)
 
     scope = str(raw.get("scope", d["scope"])).strip().lower()
     if scope not in ("all", "watched"):
@@ -202,7 +249,12 @@ def _remove_pairs_for(provider: str, sid: str) -> None:
         state["pairs"] = [
             p for p in state["pairs"] if not _pair_matches_endpoint(p, provider, sid)
         ]
-        state.get("skipped", {}).pop(f"{provider}:{sid}", None)
+        skipped = state.get("skipped", {})
+        if isinstance(skipped, dict):
+            legacy_key = f"{provider}:{sid}"
+            route_prefix = f"{provider}:{sid}->"
+            for key in [k for k in skipped if k == legacy_key or k.startswith(route_prefix)]:
+                skipped.pop(key, None)
         if len(state["pairs"]) != before:
             _save_state(state)
         else:
@@ -258,12 +310,8 @@ def update_autosync_config(
                 raise SyncError(f"Invalid intervalSec '{interval_sec}'.") from exc
             cfg["intervalSec"] = max(5, iv)
         if direction is not None:
-            d = str(direction).strip().lower()
-            if d not in ("both", "agy2claude", "claude2agy"):
-                raise SyncError(
-                    f"Invalid direction '{direction}'. Use 'both', 'agy2claude', or 'claude2agy'."
-                )
-            cfg["direction"] = d
+            canon_dir, _ = parse_direction_routes(str(direction), strict=True)
+            cfg["direction"] = canon_dir
         if scope is not None:
             sc = str(scope).strip().lower()
             if sc not in ("all", "watched"):
@@ -299,12 +347,18 @@ def update_autosync_config(
 
 def _extract_pair_sides(
     pair: dict[str, Any]
-) -> tuple[str, tuple[int, int], str, str, tuple[int, int], str] | None:
-    src = pair.get("source")
-    tgt = pair.get("target")
-    src_id = pair.get("source_id")
-    tgt_id = pair.get("target_id")
-    if not src_id or not tgt_id:
+) -> tuple[str, str, tuple[int, int], str, str, str, tuple[int, int], str] | None:
+    """Extract normalized `(src, src_id, src_fp, src_hash, tgt, tgt_id, tgt_fp, tgt_hash)` from a pair."""
+    from mcas.providers import get_supported_providers
+
+    supported_set = {p.id for p in get_supported_providers()}
+    src = str(pair.get("source") or "").strip().lower()
+    tgt = str(pair.get("target") or "").strip().lower()
+    src_id = str(pair.get("source_id") or "").strip()
+    tgt_id = str(pair.get("target_id") or "").strip()
+    if not src_id or not tgt_id or src == tgt:
+        return None
+    if src not in supported_set or tgt not in supported_set:
         return None
     src_fp = (
         int(pair.get("last_source_mtime_ns") or 0),
@@ -316,8 +370,4 @@ def _extract_pair_sides(
     )
     src_hash = str(pair.get("last_source_hash") or "")
     tgt_hash = str(pair.get("last_target_hash") or "")
-    if src == "agy" and tgt == "claude":
-        return src_id, src_fp, src_hash, tgt_id, tgt_fp, tgt_hash
-    if src == "claude" and tgt == "agy":
-        return tgt_id, tgt_fp, tgt_hash, src_id, src_fp, src_hash
-    return None
+    return src, src_id, src_fp, src_hash, tgt, tgt_id, tgt_fp, tgt_hash

@@ -1,7 +1,13 @@
-import { state } from '../state.js';
+import { isAdvanced, state } from '../state.js';
 import { api } from '../api.js';
 import { $, el } from '../utils/dom.js';
-import { normalizePathKey, providerLabel } from '../utils/format.js';
+import {
+  formatWorkspaceLabel,
+  normalizePathKey,
+  oppositeProvider,
+  providerLabel,
+  supportedProviderIds,
+} from '../utils/format.js';
 import { withBusy } from '../utils/busy.js';
 import { summarizeBatchToast, toast } from '../components/toast.js';
 import { renderStatus } from '../render/status.js';
@@ -29,12 +35,13 @@ export function renderSyncDirWorkspaceOptions() {
   const prev = sel.value;
   sel.replaceChildren();
   const workspaces = (state.status && state.status.workspaces) || [];
+  const activeIds = supportedProviderIds(state.status && state.status.providers);
   let hasPreselected = false;
   for (const w of workspaces) {
     if (!w || !w.cwd) continue;
     const opt = el('option', {
       value: w.cwd,
-      textContent: `${w.cwd} (agy ${w.counts?.agy ?? 0} / claude ${w.counts?.claude ?? 0})`,
+      textContent: formatWorkspaceLabel(w, activeIds),
     });
     if (prev ? normalizePathKey(w.cwd) === normalizePathKey(prev) : (state.cwdFilter && normalizePathKey(w.cwd) === normalizePathKey(state.cwdFilter))) {
       opt.selected = true;
@@ -61,8 +68,18 @@ export function openSyncDirModal() {
     $('sdCwdCustom').hidden = true;
     $('sdCwdCustom').value = '';
   }
-  if (state.sourceFilter === 'claude') $('sdDirection').value = 'claude->agy';
-  else $('sdDirection').value = 'agy->claude';
+  if (state.sourceFilter && state.sourceFilter !== 'all') {
+    const tgt = oppositeProvider(state.sourceFilter, state.status && state.status.providers);
+    const candidate = `${state.sourceFilter}->${tgt}`;
+    const dirSel = $('sdDirection');
+    if ([...dirSel.options].some((o) => o.value === candidate)) {
+      dirSel.value = candidate;
+    } else {
+      dirSel.value = 'agy->claude';
+    }
+  } else {
+    $('sdDirection').value = 'agy->claude';
+  }
   $('sdTargetCwd').value = '';
   updateSyncDirHint();
   $('syncDirModal').hidden = false;
@@ -88,9 +105,10 @@ export function initSyncDirModal() {
       return;
     }
     const [fromProvider, toProvider] = $('sdDirection').value.split('->');
-    const targetCwd = $('sdTargetCwd').value.trim();
-    const includeThinking = $('sdThinking').checked;
-    const overwrite = $('sdOverwrite').checked;
+    const adv = isAdvanced();
+    const targetCwd = adv ? $('sdTargetCwd').value.trim() : '';
+    const includeThinking = adv ? $('sdThinking').checked : false;
+    const overwrite = adv ? $('sdOverwrite').checked : false;
     $('syncDirModal').hidden = true;
 
     await withBusy(async () => {

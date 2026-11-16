@@ -1,4 +1,4 @@
-import { state } from '../state.js';
+import { isAdvanced, state } from '../state.js';
 import { api } from '../api.js';
 import { $ } from '../utils/dom.js';
 import { formatBytes } from '../utils/format.js';
@@ -41,9 +41,10 @@ export function initTrimModal() {
     const preset = $('tmKeepPreset').value;
     const keepRatio = preset === '50' ? 0.5 : (preset === 'all' ? 1.0 : null);
     const keepLastTurns = preset === 'last20' ? 20 : (preset === 'last50' ? 50 : null);
-    const maxToolOutputChars = $('tmTruncateTools').checked ? 2000 : 0;
-    const stripThinking = $('tmStripThinking').checked;
-    const purgeSidecars = $('tmPurgeSidecars').checked;
+    const adv = isAdvanced();
+    const maxToolOutputChars = (!adv || $('tmTruncateTools').checked) ? 2000 : 0;
+    const stripThinking = adv ? $('tmStripThinking').checked : true;
+    const purgeSidecars = adv ? $('tmPurgeSidecars').checked : true;
     const members = Array.isArray(g.membersList) && g.membersList.length ? g.membersList : [g.primary];
 
     await withBusy(async () => {

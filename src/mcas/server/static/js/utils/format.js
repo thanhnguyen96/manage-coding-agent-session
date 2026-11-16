@@ -1,6 +1,7 @@
 import { getLang, t } from '../i18n.js';
 
-export const PROVIDER_ORDER = ['claude', 'agy'];
+export const PROVIDER_ORDER = ['claude', 'agy', 'codex'];
+const KNOWN_PROVIDER_COLORS = new Set(['agy', 'claude', 'codex']);
 
 export function parseDateVal(v) {
   if (v === undefined || v === null || v === '') return null;
@@ -34,8 +35,42 @@ export function providerLabel(id) {
   return id || 'unknown';
 }
 
-export function oppositeProvider(id) {
-  return id === 'agy' ? 'claude' : 'agy';
+export function providerBadgeClass(id) {
+  return KNOWN_PROVIDER_COLORS.has(id) ? id : 'other';
+}
+
+export function providerDotClass(id) {
+  return KNOWN_PROVIDER_COLORS.has(id) ? id : '';
+}
+
+export function supportedProviderIds(providers) {
+  if (Array.isArray(providers) && providers.length) {
+    const active = providers
+      .filter((p) => p && p.id && !p.comingSoon && p.supported !== false)
+      .map((p) => p.id);
+    if (active.length) return orderedProvidersList(active);
+  }
+  return [...PROVIDER_ORDER];
+}
+
+export function otherProviders(id, providers) {
+  return supportedProviderIds(providers).filter((p) => p !== id);
+}
+
+export function oppositeProvider(id, providers) {
+  const others = otherProviders(id, providers);
+  if (id === 'agy' && others.includes('claude')) return 'claude';
+  if (id === 'claude' && others.includes('agy')) return 'agy';
+  return others[0] || 'claude';
+}
+
+export function formatWorkspaceLabel(w, providerIds) {
+  const counts = (w && w.counts) || {};
+  const ids = providerIds && providerIds.length ? providerIds : PROVIDER_ORDER;
+  const parts = ids.map((id) => `${id} ${counts[id] ?? 0}`);
+  const sum = ids.reduce((acc, id) => acc + (Number(counts[id]) || 0), 0);
+  const total = w && w.total !== undefined ? w.total : sum;
+  return `${w.cwd} (${total} \u00b7 ${parts.join(' / ')})`;
 }
 
 export function sessionKey(s) {
@@ -108,5 +143,6 @@ export function formatResumeCmd(provider, id) {
   if (!id) return '';
   if (provider === 'claude') return `claude --resume ${id}`;
   if (provider === 'agy') return `agy --conversation ${id}`;
+  if (provider === 'codex') return `codex resume ${id}`;
   return '';
 }

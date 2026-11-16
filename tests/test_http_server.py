@@ -14,7 +14,13 @@ from pathlib import Path
 from typing import Any
 
 from tests.conftest import find_free_port
-from tests.fixtures.seed import claude_slug, make_agy_db, seed_heavy_and_clean_fixtures
+from tests.fixtures.seed import (
+    claude_slug,
+    make_agy_db,
+    make_codex_empty_jsonl,
+    make_codex_jsonl,
+    seed_heavy_and_clean_fixtures,
+)
 
 
 def _http_get(url: str, headers: dict[str, str] | None = None) -> tuple[int, dict[str, str], bytes]:
@@ -41,6 +47,22 @@ def _http_post_json(
 
 def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
     sb, ids = seeded_sandbox
+    codex_id = "88888888-8888-4888-8888-888888888888"
+    codex_empty_id = "89999999-9999-4999-8999-999999999999"
+    make_codex_jsonl(
+        sb.codex_dir,
+        codex_id,
+        sb.ws_a,
+        "Codex HTTP test prompt",
+        "Codex HTTP thinking",
+        "Codex HTTP reply",
+        "2026-11-15T08:00:00.000Z",
+        include_tools=True,
+        upsert_sqlite=True,
+    )
+    codex_empty_path = make_codex_empty_jsonl(
+        sb.codex_dir, codex_empty_id, sb.ws_a, "2026-11-15T08:05:00.000Z"
+    )
     port = find_free_port()
     base = f"http://127.0.0.1:{port}"
     env = dict(sb.env)
@@ -128,21 +150,35 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
         st_code, _, st_body = _http_get(f"{base}/api/status", headers=headers)
         assert st_code == 200
         status_json = json.loads(st_body.decode("utf-8"))
+        assert any(
+            p["id"] == "codex" and p["supported"] is True and p["comingSoon"] is False
+            for p in status_json["providers"]
+        )
         assert any(p["id"] == "opencode" and p["comingSoon"] for p in status_json["providers"])
         assert len(status_json["workspaces"]) >= 2
         assert status_json["storage"]["totalBytes"] > 0
+        assert status_json["storage"]["codexBytes"] > 0
+        assert status_json["storage"]["codexHuman"]
         assert status_json["storage"]["totalHuman"]
 
-        # /api/sessions
+        # /api/sessions (all & codex filter)
         sess_code, _, sess_body = _http_get(
             f"{base}/api/sessions?source=all&limit=50", headers=headers
         )
         assert sess_code == 200
         sess_json = json.loads(sess_body.decode("utf-8"))
-        assert sess_json["total"] >= 3
-        assert len(sess_json["sessions"]) >= 3
+        assert sess_json["total"] >= 4
+        assert len(sess_json["sessions"]) >= 4
 
-        # /api/session
+        cx_sess_code, _, cx_sess_body = _http_get(
+            f"{base}/api/sessions?source=codex&limit=50", headers=headers
+        )
+        assert cx_sess_code == 200
+        cx_sess_json = json.loads(cx_sess_body.decode("utf-8"))
+        assert len(cx_sess_json["sessions"]) == 1
+        assert cx_sess_json["sessions"][0]["id"] == codex_id
+
+        # /api/session (agy & codex)
         one_code, _, one_body = _http_get(
             f"{base}/api/session?source=agy&id={ids['agy_id']}", headers=headers
         )
@@ -150,6 +186,15 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
         one_json = json.loads(one_body.decode("utf-8"))
         assert one_json["id"] == ids["agy_id"]
         assert len(one_json["turns"]) >= 3
+
+        cx_one_code, _, cx_one_body = _http_get(
+            f"{base}/api/session?source=codex&id={codex_id}", headers=headers
+        )
+        assert cx_one_code == 200
+        cx_one_json = json.loads(cx_one_body.decode("utf-8"))
+        assert cx_one_json["id"] == codex_id
+        assert cx_one_json["resumeCmd"] == f"codex resume {codex_id}"
+        assert len(cx_one_json["turns"]) >= 3
 
         # /api/copy
         cp_code, cp_json = _http_post_json(
@@ -167,6 +212,36 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
         assert cp_json["results"][0]["ok"] is True
         assert "claude --resume" in cp_json["results"][0]["resumeCmd"]
         copied_target_id = cp_json["results"][0]["targetId"]
+
+        # /api/copy claude -> codex and codex -> agy
+        c2cx_code, c2cx_json = _http_post_json(
+            f"{base}/api/copy",
+            headers,
+            {
+                "items": [{"source": "claude", "id": ids["claude_a_id"]}],
+                "toProvider": "codex",
+                "newId": True,
+                "overwrite": False,
+                "includeThinking": False,
+            },
+        )
+        assert c2cx_code == 200 and c2cx_json["results"][0]["ok"] is True
+        assert c2cx_json["results"][0]["resumeCmd"].startswith("codex resume ")
+        copied_codex_id = c2cx_json["results"][0]["targetId"]
+
+        cx2a_code, cx2a_json = _http_post_json(
+            f"{base}/api/copy",
+            headers,
+            {
+                "items": [{"source": "codex", "id": codex_id}],
+                "toProvider": "agy",
+                "newId": True,
+                "overwrite": False,
+                "includeThinking": True,
+            },
+        )
+        assert cx2a_code == 200 and cx2a_json["results"][0]["ok"] is True
+        copied_agy_from_cx = cx2a_json["results"][0]["targetId"]
 
         # /api/sync-dir
         sd_code, sd_json = _http_post_json(
@@ -250,7 +325,7 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
         sz_list = json.loads(sz_body.decode("utf-8"))["sessions"]
         assert sz_list[0]["sizeBytes"] >= sz_list[1]["sizeBytes"]
 
-        # /api/trim
+        # /api/trim (agy & codex)
         tr_code, tr_json = _http_post_json(
             f"{base}/api/trim",
             headers,
@@ -266,7 +341,20 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
         assert tr_json["ok"] is True and tr_json["freedBytes"] > 20000
         assert not fx["agy_seed_brain"].exists()
 
-        # /api/clean dryRun
+        cx_tr_code, cx_tr_json = _http_post_json(
+            f"{base}/api/trim",
+            headers,
+            {
+                "source": "codex",
+                "id": codex_id,
+                "keepLastTurns": 2,
+                "stripThinking": True,
+                "truncateTools": True,
+            },
+        )
+        assert cx_tr_code == 200 and cx_tr_json["ok"] is True
+
+        # /api/clean dryRun (all) and real clean (codex empty)
         cl_code, cl_json = _http_post_json(
             f"{base}/api/clean",
             headers,
@@ -280,14 +368,43 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
         assert cl_code == 200
         assert cl_json["dryRun"] is True
         assert cl_json["orphansCleaned"] >= 2
-        assert cl_json["sessionsDeleted"] >= 1
+        assert cl_json["sessionsDeleted"] >= 2
         assert fx["orphan_brain"].exists() and fx["orphan_fh"].exists()
 
-        # /api/delete single + deleteSyncedPeers
+        cx_cl_code, cx_cl_json = _http_post_json(
+            f"{base}/api/clean",
+            headers,
+            {
+                "source": "codex",
+                "cleanOrphans": False,
+                "deleteEmpty": True,
+                "dryRun": False,
+            },
+        )
+        assert cx_cl_code == 200 and cx_cl_json["sessionsDeleted"] >= 1
+        assert not codex_empty_path.exists()
+
+        # /api/delete single (claude, codex, agy) + deleteSyncedPeers
         d1_code, d1 = _http_post_json(
             f"{base}/api/delete", headers, {"source": "claude", "id": copied_target_id}
         )
         assert d1_code == 200 and d1["ok"] is True
+
+        d_cx_code, d_cx = _http_post_json(
+            f"{base}/api/delete", headers, {"source": "codex", "id": copied_codex_id}
+        )
+        assert d_cx_code == 200 and d_cx["ok"] is True
+
+        d_cx_orig_code, d_cx_orig = _http_post_json(
+            f"{base}/api/delete",
+            headers,
+            {
+                "items": [{"source": "codex", "id": codex_id}],
+                "deleteSyncedPeers": True,
+            },
+        )
+        assert d_cx_orig_code == 200 and d_cx_orig["ok"] is True and d_cx_orig["deletedCount"] >= 2
+        assert not (sb.agy_dir / "conversations" / f"{copied_agy_from_cx}.db").exists()
 
         d2_code, d2 = _http_post_json(
             f"{base}/api/delete",
@@ -298,7 +415,7 @@ def test_http_server_api_and_static_assets(seeded_sandbox) -> None:
             },
         )
         assert d2_code == 200
-        assert d2["ok"] is True and d2["deletedCount"] >= 2
+        assert d2["ok"] is True and d2["deletedCount"] >= 3
         assert not Path(target_file).exists()
 
         # /api/autostart on & off (sandboxed APPDATA)

@@ -16,6 +16,8 @@ _AGY_META_CACHE: dict[
 
 _CLAUDE_SUMMARY_CACHE: dict[str, tuple[tuple[int, int, int, int], SessionSummary]] = {}
 
+_CODEX_SUMMARY_CACHE: dict[str, tuple[tuple[int, int, int, int], SessionSummary]] = {}
+
 _DIR_SIZE_CACHE: dict[str, tuple[float, int, int]] = {}
 
 def _invalidate_size_cache() -> None:
@@ -28,6 +30,7 @@ def _evict_session_cache(path: Path | None = None) -> None:
             key = str(path)
             _AGY_META_CACHE.pop(key, None)
             _CLAUDE_SUMMARY_CACHE.pop(key, None)
+            _CODEX_SUMMARY_CACHE.pop(key, None)
         _DIR_SIZE_CACHE.clear()
 
 def _file_stat_sig(path: Path) -> tuple[int, int]:

@@ -1,7 +1,7 @@
 [project]
 name = "mcas"
-version = "0.2.0"
-description = "Manage Coding Agent Session - browse, convert, and auto-sync coding agent CLI sessions (Antigravity CLI + Claude Code CLI)"
+version = "0.3.0"
+description = "Manage Coding Agent Session - browse, convert, and auto-sync coding agent CLI sessions (Antigravity CLI + Claude Code CLI + Codex CLI)"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []

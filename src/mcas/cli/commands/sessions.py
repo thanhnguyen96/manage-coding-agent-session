@@ -85,7 +85,7 @@ def _print_copy_result(res: dict[str, Any]) -> None:
     print(f"  Target CWD:   {res['targetCwd']}")
     print(f"  Output Path:  {res['path']}")
     cur_cwd = normalize_windows_path(os.getcwd())
-    if res["toProvider"] == "claude" and res["targetCwd"] and not paths_match(cur_cwd, res["targetCwd"]):
+    if res["toProvider"] in ("claude", "codex") and res["targetCwd"] and not paths_match(cur_cwd, res["targetCwd"]):
         print(f"  Resume dir:   cd \"{res['targetCwd']}\"")
     print(f"  Resume cmd:   {res['resumeCmd']}")
 

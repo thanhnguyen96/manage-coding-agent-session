@@ -87,6 +87,7 @@
 }
 .pbadge.agy { background: var(--agy-bg); color: var(--agy); }
 .pbadge.claude { background: var(--claude-bg); color: var(--claude); }
+.pbadge.codex { background: var(--codex-bg); color: var(--codex); }
 .pbadge.other { background: var(--chip); color: var(--muted); }
 
 .session-title {
@@ -217,6 +218,7 @@
 }
 .prov-tag-dot.agy { background: var(--agy); }
 .prov-tag-dot.claude { background: var(--claude); }
+.prov-tag-dot.codex { background: var(--codex); }
 
 .prov-dropdown {
   position: relative;

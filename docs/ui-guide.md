@@ -1,142 +1,149 @@
-# Hướng dẫn Giao diện Web (`mcas` Web UI Guide)
+# `mcas` Web UI Guide
 
-Tài liệu trực quan giải thích từng nút điều khiển và các quy trình sử dụng thực tế trên Web UI của **`mcas`** (Manage Coding Agent Session).
+An illustrated guide explaining each control, Basic vs Advanced mode behavior, and common workflows in the **`mcas`** (Manage Coding Agent Session) Web UI.
 
-> **Mẹo nhanh ngay trong ứng dụng:** Bấm nút **`? Help`** ở góc trên bên phải (hoặc nhấn phím **`?`**) để mở bảng hướng dẫn trực quan ngay trong giao diện web, và dùng nút cờ **`EN / VI`** để chuyển đổi ngôn ngữ giữa Tiếng Việt và English bất kỳ lúc nào.
+> **Quick in-app tip:** Click **`? Help`** in the top-right utility bar (or press **`?`**) to open this annotated visual guide directly inside the Web UI, switch between **Basic** (default) and **Advanced** using the toggle on the right of the tab bar, or use the **`EN / VI`** flag dropdown to switch UI languages anytime.
 
-## Mục lục
+## Interface Modes: Basic (Default) vs Advanced
 
-1. [Thanh tiêu đề & Điều khiển chung](#1-thanh-tiêu-đề--điều-khiển-chung)
-2. [Bộ lọc, Thao tác hàng loạt & Dòng phiên](#2-bộ-lọc-thao-tác-hàng-loạt--dòng-phiên)
-3. [Menu Đồng bộ & Gỡ Provider trên từng phiên](#3-menu-đồng-bộ--gỡ-provider-trên-từng-phiên)
-4. [Ngăn Xem trước chi tiết phiên (Preview Drawer)](#4-ngăn-xem-trước-chi-tiết-phiên-preview-drawer)
-5. [Hộp thoại Làm nhẹ / Cắt gọn phiên (Lighten)](#5-hộp-thoại-làm-nhẹ--cắt-gọn-phiên-lighten)
-6. [Hộp thoại Dọn dẹp dung lượng (Storage Clean Up)](#6-hộp-thoại-dọn-dẹp-dung-lượng-storage-clean-up)
-7. [Auto-Sync chạy nền & Nhật ký hoạt động](#7-auto-sync-chạy-nền--nhật-ký-hoạt-động)
-8. [Các tình huống sử dụng thực tế](#8-các-tình-huống-sử-dụng-thực-tế)
+`mcas` defaults to **Basic** mode (`mcas.uiMode` in `localStorage`) so daily workflows—browsing, searching, previewing, syncing/copying, **Lighten**, and **Clean Up**—stay clutter-free with safe defaults.
+
+- **Basic mode (default):** Hides rarely needed power options (such as `#includeAll`, custom folder paths, bulk folder overrides/UUID forcing, `<thought>` toggles, custom age/size cleanup thresholds, and Auto-Sync interval/watched-folder lists). Hidden one-shot options automatically use safe defaults without erasing any saved preferences.
+- **Advanced mode:** Click **Advanced** in `#uiModeSwitch` (right side of the tab bar) to reveal all power controls marked **[Advanced]** below. Any non-default Advanced filters or Auto-Sync settings remain clearly summarized in Basic mode via dismissible filter chips or a read-only Auto-Sync summary with an **Edit in Advanced** shortcut.
+
+## Table of Contents
+
+1. [Top Bar & Global Controls](#1-top-bar--global-controls)
+2. [Filters, Bulk Actions & Session Rows](#2-filters-bulk-actions--session-rows)
+3. [Per-Session Provider Sync & Removal Dropdown](#3-per-session-provider-sync--removal-dropdown)
+4. [Preview Slide-Over Drawer](#4-preview-slide-over-drawer)
+5. [Lighten / Trim Modal](#5-lighten--trim-modal)
+6. [Storage Clean Up Modal](#6-storage-clean-up-modal)
+7. [Background Auto-Sync & Activity Log](#7-background-auto-sync--activity-log)
+8. [Real-World Use Cases](#8-real-world-use-cases)
 
 ---
 
-## 1. Thanh tiêu đề & Điều khiển chung
+## 1. Top Bar & Global Controls
 
-![Thanh tiêu đề mcas được đánh số từ 1 đến 8](../src/mcas/server/static/img/guide-topbar.png)
+![Annotated mcas top bar controls 1 to 8](../src/mcas/server/static/img/guide-topbar.png)
 
-| Số | Thành phần | Mô tả ngắn | Trường hợp sử dụng |
+| # | Control | Description | When to use |
 |---|---|---|---|
-| **1** | **Thẻ Provider** (`#providerChips`) | Hiển thị số lượng phiên và tổng dung lượng đĩa của từng coding agent (`agy`, `claude`; `opencode`/`codex` đang ở trạng thái `SOON`). | Bấm trực tiếp vào thẻ **Antigravity** hoặc **Claude Code** để lọc nhanh danh sách phiên của agent đó. |
-| **2** | **Nút trạng thái Auto-Sync** (`#autosyncPill`) | Cho biết Auto-Sync nền đang **ON** (kèm chu kỳ giây), **OFF**, hoặc đang đồng bộ. | Bấm để chuyển thẳng sang tab **Auto-Sync & Activity** cấu hình hoặc xem nhật ký. |
-| **3** | **Khởi động cùng Windows** (`#autostartWrap`) | Tạo hoặc gỡ shortcut khay hệ thống `mcas` trong thư mục Startup của Windows. | Bật nếu muốn dịch vụ nền & Auto-Sync tự chạy mỗi khi đăng nhập Windows. |
-| **4** | **Làm mới** (`#refreshBtn`) | Quét lại ngay dữ liệu phiên trên ổ đĩa và cập nhật danh sách. | Dùng ngay sau khi vừa kết thúc một cuộc chat trên CLI mà chưa muốn đợi chu kỳ tự động 5 giây. |
-| **5** | **Dừng máy chủ** (`#quitBtn`) | Tắt an toàn web server cục bộ, luồng Auto-Sync và biểu tượng khay hệ thống (có hộp thoại xác nhận). | Dùng trước khi cập nhật phiên bản `mcas` hoặc khi muốn tắt hẳn tiến trình nền. |
-| **6** | **Hướng dẫn** (`#helpBtn`) | Mở hộp thoại Visual Help / FAQ có ảnh chú thích ngay trong ứng dụng (phím tắt **`?`**). | Nhấn `?` bất cứ lúc nào để tra cứu ý nghĩa nút bấm mà không cần rời giao diện web. |
-| **7** | **Ngôn ngữ** (`#langBtn`) | Dropdown lá cờ **US / VN** chuyển đổi tức thì toàn bộ UI giữa **English** và **Tiếng Việt**, tự lưu vào `localStorage`. | Chuyển ngôn ngữ hiển thị theo sở thích; các lệnh CLI (`claude --resume ...`, `agy --conversation ...`) luôn giữ nguyên. |
-| **8** | **Giao diện Sáng/Tối** (`#themeBtn`) | Nút góc trên cùng bên phải để chuyển đổi chế độ **Light / Dark** (`mcas.theme`). | Đổi tông màu Sáng/Tối thủ công bất kể cấu hình giao diện của Windows. |
+| **1** | **Provider chips** (`#providerChips`) | Live conversation count and disk footprint for each active coding agent (`Antigravity`, `Claude Code`, `Codex`). | Click any chip to quickly filter the list to that provider. |
+| **2** | **Auto-Sync pill** (`#autosyncPill`) | Shows whether background Auto-Sync is **ON** (with polling interval), **OFF**, or actively **syncing**. | Click to jump straight to the **Auto-Sync & Activity** tab. |
+| **3** | **Start with Windows** (inside **Settings** `#settingsBtn`) | Creates or removes the `mcas` system tray shortcut in the Windows Startup folder. | Enable inside the Settings gear menu if you want background Auto-Sync to start automatically on sign-in. |
+| **4** | **Refresh** (`#refreshBtn`) | Forces an immediate rescan of provider storage and reloads sessions. | Use right after finishing a CLI chat without waiting for the 5-second auto-refresh. |
+| **5** | **Stop server** (inside **Settings** `#settingsBtn`) | Safely shuts down the local web server, Auto-Sync loop, and Windows tray icon (with confirmation dialog). | Use before upgrading `mcas` or when shutting down background services cleanly. |
+| **6** | **Help** (`#helpBtn`) | Opens the interactive Visual UI Guide & FAQ modal (keyboard shortcut: **`?`**). | Press `?` anytime to inspect controls without leaving the Web UI. |
+| **7** | **Language** (`#langBtn`) | Flag dropdown (**EN / VI**) switching the entire UI live between **English** and **Tiếng Việt** (`localStorage`). | Switch UI language anytime; CLI resume commands (`claude --resume ...`, `agy --conversation ...`, `codex resume ...`) stay unchanged. |
+| **8** | **Theme toggle** (`#themeBtn`) | Top-right button switching between **Light** and **Dark** color themes (`mcas.theme`). | Override color theme manually regardless of Windows theme settings. |
 
 ---
 
-## 2. Bộ lọc, Thao tác hàng loạt & Dòng phiên
+## 2. Filters, Bulk Actions & Session Rows
 
-![Thanh bộ lọc, thanh chọn hàng loạt và dòng phiên được đánh số từ 1 đến 9](../src/mcas/server/static/img/guide-filters-row.png)
+![Annotated filter bar, bulk selection bar, and session row controls 1 to 9](../src/mcas/server/static/img/guide-filters-row.png)
 
-| Số | Thành phần | Mô tả ngắn | Trường hợp sử dụng |
+| # | Control | Description | When to use |
 |---|---|---|---|
-| **1** | **Bộ lọc Provider** (`#providerPills`) | Nhóm nút chuyển **All / Antigravity / Claude Code**. | Khi chỉ muốn xem danh sách phiên thuộc một agent cụ thể. |
-| **2** | **Thư mục dự án** (`#cwdSelect`) | Dropdown lọc phiên theo đường dẫn workspace tự phát hiện (hoặc chọn nhập đường dẫn tùy chỉnh). | Tập trung đúng các cuộc hội thoại thuộc repository bạn đang code. |
-| **3** | **Tìm kiếm** (`#searchInput`) | Tìm tức thì theo tiêu đề, đoạn xem trước, UUID phiên hoặc đường dẫn thư mục. | Tìm lại cuộc trò chuyện cũ theo từ khóa hoặc dán trực tiếp một đoạn UUID. |
-| **4** | **Gồm subagent / IDE / trống** (`#includeAll`) | Hiện thêm các log subagent, phiên IDE và phiên trống 0 lượt (mặc định được ẩn để danh sách gọn). | Bật lên khi cần kiểm tra dung lượng rác hoặc tìm lại một phiên subagent chạy ngầm. |
-| **5** | **Sắp xếp** (`#sortSelect`) | Sắp xếp theo **Mới nhất**, **Nặng nhất**, **Nhiều lượt nhất** hoặc **Cũ nhất**. | Chọn **Sort: Largest size** để phát hiện ngay các phiên nặng nhiều MB cần làm nhẹ. |
-| **6** | **Dọn dẹp...** (`#openCleanupBtn`) | Mở hộp thoại **Storage Clean Up** (xóa file mồ côi, phiên trống, subagent, nén SQLite `VACUUM`). | Dùng định kỳ để giải phóng ổ đĩa một cách an toàn qua bước chạy thử Dry Run. |
-| **7** | **Đồng bộ thư mục** (`#openSyncDirBtn`) | Sao chép hàng loạt toàn bộ phiên cấp cao nhất của một workspace từ provider này sang provider kia. | Khi muốn di chuyển toàn bộ lịch sử chat của một dự án từ `agy` sang `claude` (hoặc ngược lại). |
-| **8** | **Thẻ Provider trên dòng** (`.prov-tag-btn`) | Cho biết phiên đang tồn tại ở đâu, ví dụ `(claude, agy)` khi hai bản đã ghép cặp đồng bộ, hoặc `(claude)` / `(agy)`. | Bấm vào thẻ để mở menu tích chọn đồng bộ sang bên còn lại hoặc gỡ riêng một bên. |
-| **9** | **Thao tác nhanh trên dòng** (`.row-actions`) | Gồm nút **Providers**, **Lighten** (cắt gọn tại chỗ) và **Preview** (mở ngăn xem chi tiết). | Bấm **Lighten** với phiên quá nặng hoặc **Preview** để đọc lại nội dung và lấy lệnh resume. |
+| **1** | **Provider filter** (`#providerPills`) | Segmented switch for **All / Antigravity / Claude Code / Codex**. | Narrow the list to sessions belonging to one coding agent. |
+| **2** | **Workspace folder** (`#cwdSelect`) | Dropdown filtering by detected repository paths (**[Advanced]** adds a **Custom folder path...** input `#cwdCustomWrap`). | Focus only on conversations for the repository you are currently working on. |
+| **3** | **Search** (`#searchInput`) | Instant filter by conversation title, message preview, session UUID, or folder path. | Locate an older conversation by keyword or paste a partial/full UUID. |
+| **4** | **Include subagents / IDE / empty** (`#includeAll`) **[Advanced]** | Reveals subagent logs, IDE chats, and 0-turn empty sessions (hidden by default; shows a dismissible filter chip if active). | Turn on when auditing storage bloat or inspecting background subagent logs. |
+| **5** | **Sort order** (`#sortSelect`) | Orders sessions by **Newest**, **Largest size**, **Most turns**, or **Oldest**. | Pick **Sort: Largest size** to spot bloated conversations ready to lighten. |
+| **6** | **Clean Up...** (`#openCleanupBtn`) | Opens the **Storage Clean Up** modal (orphaned sidecars, empty sessions, subagent traces, SQLite `VACUUM`). | Run periodically with **Dry Run** preview to reclaim disk space safely. |
+| **7** | **Sync folder** (`#openSyncDirBtn`) | Bulk-copies top-level sessions for a workspace from one provider to another. In **Basic** mode, appears as **Sync this folder → ...** whenever a workspace folder filter is active; always visible in **Advanced** mode (along with target override, `<thought>`, and overwrite options). | Migrate an entire project's conversation history between `agy`, `claude`, and `codex`. |
+| **8** | **Provider tag** (`.prov-tag-btn`) | Indicates where the conversation exists, e.g. `(claude, agy, codex)` when synced across providers, or `(claude)` / `(agy)` / `(codex)`. | Click to open the sync/removal dropdown for that session. |
+| **9** | **Row actions** (`.row-actions`) | Quick buttons: **Providers**, **Lighten** (in-place trim), and **Preview** (slide-over drawer). **[Advanced]** also displays the clickable session ID chip on each row. | Click **Lighten** on heavy sessions or **Preview** to read turns and copy resume commands. |
 
-> **Thanh thao tác hàng loạt (`#selectionBar`):** Khi tích chọn từ 1 dòng trở lên (như dòng thứ 2 trong ảnh), thanh cam phía trên danh sách sẽ hiện tổng dung lượng đã chọn cùng nút **Copy Selected** và **Delete Selected** (hỗ trợ ghi đè thư mục đích, kèm `<thought>`, tạo UUID mới hoặc ghi đè bản có sẵn).
+> **Bulk Selection Bar (`#selectionBar`):** Selecting one or more rows reveals an orange action bar showing total selected size alongside **Copy Selected** and **Delete Selected**. Switching to **Advanced** mode adds **Include `<thought>`** (`#bulkThinking`) and the **Options** menu (`#bulkOptionsBtn`) for target folder overrides, forcing a new UUID, and overwriting existing copies.
 
 ---
 
-## 3. Menu Đồng bộ & Gỡ Provider trên từng phiên
+## 3. Per-Session Provider Sync & Removal Dropdown
 
-![Menu thả xuống quản lý provider trên từng phiên đánh số từ 1 đến 5](../src/mcas/server/static/img/guide-provider-dd.png)
+![Annotated per-session provider dropdown controls 1 to 5](../src/mcas/server/static/img/guide-provider-dd.png)
 
-| Số | Thành phần | Mô tả ngắn | Trường hợp sử dụng |
+| # | Control | Description | When to use |
 |---|---|---|---|
-| **1** | **Ô chọn Provider** | Ô đã tích nghĩa là phiên đang có bản lưu ở provider đó (`claude` / `agy`). | Tích thêm provider chưa có để **sao chép sang**; bỏ tích một provider đang có để **gỡ chỉ bản ở bên đó**. |
-| **2** | **Nhãn dung lượng & trạng thái chờ** | Hiển thị dung lượng hiện tại (VD: `186 KB`), hoặc nhãn chờ **`+ Add`** / **`- Remove`**. | Kiểm tra chính xác bên nào sẽ được thêm hoặc gỡ trước khi bấm áp dụng. |
-| **3** | **Kèm khối `<thought>`** (`.prov-dd-opts`) | Chỉ hiện khi bạn tích thêm một provider mới; giữ lại phần suy nghĩ nội bộ vào văn bản trả lời của bản đích. | Tích chọn khi muốn agent đích kế thừa đầy đủ mạch suy luận chi tiết của cuộc chat. |
-| **4** | **Bỏ chọn hết** (`Untick all`) | Bỏ tích toàn bộ provider cùng lúc, chuyển menu sang chế độ xóa hoàn toàn. | Phím tắt nhanh để xóa cuộc hội thoại khỏi mọi provider thay vì bỏ tích từng dòng. |
-| **5** | **Áp dụng** (`Apply` / `Apply (Delete)`) | Thực thi các thay đổi đã tích; nếu bỏ chọn hết sẽ luôn bật hộp thoại xác nhận xóa vĩnh viễn. | Bấm sau khi kiểm tra đúng các nhãn `+ Add` / `- Remove`. |
+| **1** | **Provider checkboxes** | Checked means a copy exists on that provider (`claude` / `agy` / `codex`); unchecked means absent. | Tick a missing provider to copy/sync there; untick an existing provider to remove only that side. |
+| **2** | **Size & pending badges** | Shows current storage size (e.g., `186 KB`), or pending **`+ Add`** / **`- Remove`** badges. | Verify exact changes before clicking **Apply**. |
+| **3** | **Include `<thought>`** (`.prov-dd-opts`) **[Advanced]** | Appears when adding a provider in **Advanced** mode; folds internal reasoning blocks into the copied transcript. | Enable when you want the target agent to inherit detailed reasoning steps. |
+| **4** | **Untick all** | Unchecks every provider at once and switches **Apply** into full-delete mode. | Quick shortcut to remove a conversation from every provider. |
+| **5** | **Apply / Apply (Delete)** | Executes pending additions/removals; unchecking all providers always prompts for delete confirmation. | Click after verifying the `+ Add` / `- Remove` badges look right. |
 
 ---
 
-## 4. Ngăn Xem trước chi tiết phiên (Preview Drawer)
+## 4. Preview Slide-Over Drawer
 
-![Ngăn xem trước chi tiết phiên đánh số từ 1 đến 7](../src/mcas/server/static/img/guide-drawer.png)
+![Annotated preview drawer controls 1 to 7](../src/mcas/server/static/img/guide-drawer.png)
 
-| Số | Thành phần | Mô tả ngắn | Trường hợp sử dụng |
+| # | Control | Description | When to use |
 |---|---|---|---|
-| **1** | **Tab chuyển Provider** (`#drawerProvTabs`) | Hiện khi phiên đã ghép cặp nhiều bên (VD: `claude (1.9 KB)` và `agy (48 KB)`), cho phép chuyển xem từng bản. | So sánh dung lượng hoặc kiểm tra nội dung/ID tương ứng ở cả hai provider. |
-| **2** | **Thông số & phân rã dung lượng** (`#drawerMetaGrid`) | Hiển thị đầy đủ UUID, thư mục workspace, thời gian cập nhật, số lượt và dung lượng **main vs sidecars**. | Xác định dung lượng nặng nằm ở file chat chính hay file phụ (`brain` / `subagents`). |
-| **3** | **Chép thư mục Resume** (`#drawerCopyDir`) | Sao chép lệnh `cd "<workspace>"` đúng thư mục dự án của phiên. | Dán vào terminal mới trước khi chạy lệnh resume (đặc biệt quan trọng với `claude --resume`). |
-| **4** | **Chép lệnh Resume** (`#drawerCopyCmd`) | Sao chép lệnh `claude --resume <id>` hoặc `agy --conversation <id>`. | Tiếp tục ngay cuộc hội thoại này trong terminal CLI. |
-| **5** | **Chép sang provider đối diện** (`#drawerCopyBtn`) | Sao chép một chạm sang provider còn lại, tôn trọng ô tích **Include `<thought>`**. | Chuyển tiếp nhanh cuộc trò chuyện đang mở sang agent kia. |
-| **6** | **Làm nhẹ / Cắt gọn** (`#drawerTrimBtn`) | Mở hộp thoại **Lighten Conversation** cho chính nhóm phiên đang xem. | Giảm dung lượng file chat và file phụ khi phiên phình to nhiều MB. |
-| **7** | **Xóa hoàn toàn** (`#drawerDeleteBtn`) | Xóa vĩnh viễn mọi bản sao của phiên trên tất cả provider (luôn hỏi xác nhận trước). | Dọn bỏ hoàn toàn một phiên nháp hoặc tác vụ đã xong ở mọi nơi. |
+| **1** | **Provider tabs** (`#drawerProvTabs`) | Appears on paired sessions (e.g., `claude (1.9 KB)`, `agy (48 KB)`, `codex (12 KB)`), switching between copies in place. | Compare file sizes or inspect turns/IDs across providers. |
+| **2** | **Metadata & size breakdown** (`#drawerMetaGrid`) | Displays full UUID, workspace folder, updated timestamp, turn count, and **main vs sidecar** byte breakdown. | Check whether bloat comes from the main transcript or sidecars (`brain` / `subagents`). |
+| **3** | **Copy Resume Dir** (`#drawerCopyDir`) | Copies `cd "<workspace>"` for the session's working directory. | Paste into a new terminal before running the resume command (important for `claude --resume` and `codex resume`). |
+| **4** | **Copy Resume Cmd** (`#drawerCopyCmd`) | Copies `claude --resume <id>`, `agy --conversation <id>`, or `codex resume <id>`. | Resume this exact conversation in your CLI terminal immediately. |
+| **5** | **Copy to target provider** (`#drawerCopyBtn`, `#drawerCopyTarget`) | Pick a target provider and copy in one click (**[Advanced]** exposes **Include `<thought>`** `#drawerThinking`). | Hand off an active chat mid-task to another coding agent. |
+| **6** | **Lighten / Trim** (`#drawerTrimBtn`) | Opens **Lighten Conversation** for this session group. | Shrink bloated logs and sidecar files by several MB. |
+| **7** | **Delete Completely** (`#drawerDeleteBtn`) | Permanently removes all provider copies in the group after confirmation. | Remove finished or throwaway sessions across all providers at once. |
 
 ---
 
-## 5. Hộp thoại Làm nhẹ / Cắt gọn phiên (Lighten)
+## 5. Lighten / Trim Modal
 
-![Hộp thoại Lighten Conversation đánh số từ 1 đến 4](../src/mcas/server/static/img/guide-lighten.png)
+![Annotated Lighten Conversation modal controls 1 to 4](../src/mcas/server/static/img/guide-lighten.png)
 
-| Số | Thành phần | Mô tả ngắn | Trường hợp sử dụng |
+| # | Control | Description | When to use |
 |---|---|---|---|
-| **1** | **Số lượt lịch sử giữ lại** (`#tmKeepPreset`) | Chọn giữ **50% lượt mới nhất**, **20/50 lượt cuối**, hoặc **Giữ tất cả lượt**. | Chọn **Keep all turns** nếu bạn chỉ muốn xóa log tool/ảnh nặng mà không mất bất kỳ tin nhắn nào. |
-| **2** | **Xóa file phụ nặng** (`#tmPurgeSidecars`) | Xóa ảnh/log trong `brain/`, thư mục `subagents/` và `file-history` đi kèm. | Thường tiết kiệm **80–95%** dung lượng đĩa mà vẫn giữ nguyên nội dung hội thoại chính. |
-| **3** | **Rút gọn tool & Xóa `<thought>`** (`#tmTruncateTools`, `#tmStripThinking`) | Cắt gọn kết quả tool quá dài (> 2.000 ký tự) và loại bỏ các khối suy nghĩ nội bộ. | Giữ tích cả hai khi phiên có nhiều đoạn dump file lớn hoặc chuỗi reasoning dài. |
-| **4** | **Làm nhẹ ngay** (`#tmSubmitBtn`) | Thực thi cắt gọn trực tiếp tại chỗ trên tất cả các bản sao trong nhóm phiên. | Bấm để thu gọn dung lượng ngay và xem thông báo số KB/MB đã giải phóng. |
+| **1** | **History turns to keep** (`#tmKeepPreset`) | Keep **newest 50%** (recommended), **last 20/50 turns**, or **all turns**. | Pick **Keep all turns** to strip heavy sidecars/tool dumps without dropping any messages. |
+| **2** | **Purge heavy sidecars** (`#tmPurgeSidecars`) **[Advanced]** | Deletes `brain/` images/logs, `subagents/` folders, and `file-history` backups (enabled automatically in **Basic** mode). | Typically saves **80–95%** of session bytes while keeping the main conversation intact. |
+| **3** | **Truncate tools & Strip `<thought>`** (`#tmTruncateTools`, `#tmStripThinking`) **[Advanced]** | Caps tool outputs longer than 2,000 characters and strips internal thinking blocks (enabled automatically in **Basic** mode). | Useful to toggle off in **Advanced** mode if you want to preserve raw tool dumps or reasoning blocks. |
+| **4** | **Lighten Now** (`#tmSubmitBtn`) | Trims all provider copies in the session group in place and reports freed bytes. | Click to slim the conversation immediately. |
 
 ---
 
-## 6. Hộp thoại Dọn dẹp dung lượng (Storage Clean Up)
+## 6. Storage Clean Up Modal
 
-![Hộp thoại Storage Clean Up kèm khung Preview Dry Run đánh số từ 1 đến 6](../src/mcas/server/static/img/guide-cleanup.png)
+![Annotated Storage Clean Up modal with Dry Run preview controls 1 to 6](../src/mcas/server/static/img/guide-cleanup.png)
 
-| Số | Thành phần | Mô tả ngắn | Trường hợp sử dụng |
+| # | Control | Description | When to use |
 |---|---|---|---|
-| **1** | **Bảng thống kê dung lượng** (`#clStorageGrid`) | Hiển thị tổng dung lượng, dung lượng của `agy` / `claude`, và bộ đếm **Orphans / Empty / Subagents**. | Kiểm tra nhanh xem có bao nhiêu MB rác có thể thu hồi an toàn. |
-| **2** | **File mồ côi & nén SQLite** (`#clOrphans`) | Xóa các thư mục `brain` / sidecar không còn phiên gốc và chạy `VACUUM` nén cơ sở dữ liệu SQLite. | An toàn để luôn giữ tích trong mọi lần dọn dẹp. |
-| **3** | **Phiên trống & Subagent** (`#clEmpty`, `#clSubagents`) | Xóa các phiên 0 lượt không có hội thoại và log/thư mục `subagents/`. | Tích chọn khi muốn dọn các phiên mở nhầm hoặc dấu vết subagent cũ. |
-| **4** | **Ngưỡng Ngày / MB & Phạm vi** (`#clOlderDays`, `#clLargerMb`, `#clScope`) | Tùy chọn xóa thêm phiên cũ hơn N ngày hoặc nặng hơn N MB, trong **All workspaces** hoặc chỉ thư mục đang lọc. | Lọc dọn sâu các phiên cũ quá hạn hoặc phình to quá ngưỡng cho phép. |
-| **5** | **Xem trước - Chạy thử** (`#clPreviewBtn`) | Quét và liệt kê toàn bộ mục sẽ bị xóa + dung lượng dự kiến giải phóng vào khung Preview mà **không xóa thật**. | **Luôn chạy Dry Run trước** mỗi khi bật ngưỡng ngày, ngưỡng MB hoặc xóa subagent. |
-| **6** | **Dọn dẹp ngay** (`#clRunBtn`) | Hiện hộp thoại xác nhận cuối cùng rồi xóa vĩnh viễn các mục đã khớp tiêu chí. | Bấm sau khi đã rà soát danh sách trong khung Dry Run hoàn toàn chính xác. |
+| **1** | **Storage breakdown** (`#clStorageGrid`) | Displays total usage, `agy` / `claude` / `codex` disk usage, and **Orphans / Empty / Subagents** counts. | Check at a glance how much reclaimable space is available. |
+| **2** | **Orphaned sidecars & SQLite VACUUM** (`#clOrphans`) | Removes orphaned `brain`/sidecar directories whose sessions no longer exist and compacts SQLite indexes (`VACUUM`). | Safe to keep checked on every cleanup run. |
+| **3** | **Empty sessions & Subagents** (`#clEmpty`, `#clSubagents`) | Deletes 0-turn empty sessions and subagent logs/`subagents/` directories. | Check to clear accidental empty launches or leftover subagent traces. |
+| **4** | **Age / Size filters & Scope** (`#clOlderDays`, `#clLargerMb`, `#clScope`) **[Advanced]** | Optional filters to target sessions older than N days or larger than N MB, across **All workspaces** or the active workspace filter only. | Use in **Advanced** mode for targeted pruning of stale or oversized conversations. |
+| **5** | **Preview (Dry Run)** (`#clPreviewBtn`) | Scans and lists every matching target and estimated freed bytes **without deleting anything**. | **Always run Dry Run first** before confirming permanent deletion. |
+| **6** | **Clean Up Now** (`#clRunBtn`) | Prompts for final confirmation and permanently removes matched items. | Click after reviewing the Dry Run list. |
 
 ---
 
-## 7. Auto-Sync chạy nền & Nhật ký hoạt động
+## 7. Background Auto-Sync & Activity Log
 
-![Bảng điều khiển Auto-Sync và Nhật ký hoạt động đánh số từ 1 đến 6](../src/mcas/server/static/img/guide-autosync.png)
+![Annotated Auto-Sync panel and activity log controls 1 to 6](../src/mcas/server/static/img/guide-autosync.png)
 
-| Số | Thành phần | Mô tả ngắn | Trường hợp sử dụng |
+| # | Control | Description | When to use |
 |---|---|---|---|
-| **1** | **Bật Auto-Sync nền** (`#asEnabled`) | Bật/tắt tiến trình chạy nền tự động kiểm tra và đồng bộ phiên theo chu kỳ. | Bật khi bạn dùng song song cả Antigravity và Claude Code hằng ngày. |
-| **2** | **Chiều đồng bộ & Chu kỳ** (`#asDirection`, `#asInterval`) | Chọn **Hai chiều (`agy ↔ claude`)** chống lặp ngược hoặc chỉ một chiều, cùng chu kỳ `10s–300s`. | Khuyên dùng **Bidirectional + 30s** để hai bên tự cập nhật lượt chat mới mà không tạo bản trùng lặp. |
-| **3** | **Phạm vi & Thư mục theo dõi** (`#asScope`, `#watchedBox`) | Chọn **All workspaces** hoặc **Selected folders only** kèm danh sách checkbox thư mục (hỗ trợ thêm đường dẫn tùy chỉnh). | Chọn **Selected folders only** khi chỉ muốn tự động đồng bộ các dự án quan trọng, giữ nguyên các thư mục thử nghiệm. |
-| **4** | **Kèm `<thought>` khi Auto-Sync** (`#asIncludeThinking`) | Quyết định có chép khối suy nghĩ nội bộ `<thought>` vào văn bản trả lời hay không. | Tắt để file đồng bộ gọn nhẹ; bật nếu cần xem lại quá trình suy luận khi chuyển agent. |
-| **5** | **Lưu cài đặt & Đồng bộ ngay** (`#asSaveBtn`, `#asSyncNowBtn`) | **Save Settings** ghi cấu hình vào `sync_state.json`; **Sync Now** kích hoạt ngay một lượt đồng bộ tức thì. | Bấm **Save Settings** sau khi thay đổi tùy chọn, rồi bấm **Sync Now** để chạy kiểm tra ngay lập tức. |
-| **6** | **Nhật ký hoạt động** (`#historyBody`) | Bảng lịch sử mới nhất hiển thị thời gian, chiều đồng bộ (`auto` / `manual`), trạng thái (`ok` / `skipped`) và nút **Copy cmd**. | Lấy nhanh lệnh resume ở provider đích hoặc kiểm tra lý do nếu một phiên bị bỏ qua. |
+| **1** | **Enable Auto-Sync** (`#asEnabled`) | Toggles periodic background syncing on or off. | Enable when using Antigravity, Claude Code, and Codex side by side every day. |
+| **2** | **Direction & Interval** (`#asDirection`, `#asInterval`) | Choose **Bidirectional (all: `agy ↔ claude ↔ codex`)**, a pair-specific bidirectional route (e.g., `agy ↔ codex`), or a 1-way route. Polling interval (`10s–300s`, default `30s`) is configurable in **[Advanced]** mode. | **Bidirectional + 30s** keeps new turns synced smoothly across agents without echo loops. |
+| **3** | **Workspace Scope & Watched Folders** (`#asScope`, `#watchedBox`) **[Advanced]** | Restrict Auto-Sync to **Selected folders only** with checkboxes and custom folder paths (defaults to **All workspaces**; summarized in **Basic** mode with **Edit in Advanced** if customized). | Use **Selected folders only** when you want background sync limited to specific repositories. |
+| **4** | **Include `<thought>`** (`#asIncludeThinking`) **[Advanced]** | Controls whether internal `<thought>` blocks are preserved during Auto-Sync. | Leave off for smaller synced files; enable if you review reasoning blocks across agents. |
+| **5** | **Save Settings & Sync Now** (`#asSaveBtn`, `#asSyncNowBtn`) | **Save Settings** writes config to `sync_state.json` (enabled when changes are unsaved); **Sync Now** (or **Save & Sync Now** when dirty) runs a sync pass immediately. | Save changes or trigger an instant check anytime. |
+| **6** | **Sync Activity Log** (`#historyBody`) | Newest-first log showing timestamp, direction (`auto` / `manual`), status, and a one-click **Copy cmd** button. | Grab the target CLI resume command or inspect skipped/failed entries. |
 
 ---
 
-## 8. Các tình huống sử dụng thực tế
+## 8. Real-World Use Cases
 
-1. **Đang code bằng Claude Code hoặc Antigravity thì hết quota — chuyển sang agent kia giữa chừng:**
-   - Mở `mcas` Web UI, tìm phiên đang làm -> bấm thẻ **Provider** (hoặc **Preview -> Copy -> Claude/AGY**).
-   - Nếu đang ở tab **Preview**, bấm nút **Copy** cạnh *Resume Dir* và **Copy cmd** cạnh *Resume Cmd*, dán vào terminal để tiếp tục đúng ngữ cảnh trước đó.
-2. **Tự động đồng bộ hai chiều chỉ cho các repo quan trọng:**
-   - Mở tab **Auto-Sync & Activity** -> bật **Enable automatic background sync** -> chọn **Bidirectional (`agy ↔ claude`)** -> chọn Scope **Selected folders only** -> tích các repo mong muốn -> bấm **Save Settings**.
-   - Cơ chế sổ cái trong `sync_state.json` ghi nhận cặp `(mtime_ns, turn_count)` ở cả hai đầu nên chỉ cập nhật khi có lượt chat mới, không bao giờ lặp ngược (loop-free).
-3. **Giảm dung lượng hàng chục MB của một phiên có nhiều subagent hoặc ảnh:**
-   - Chọn **Sort: Largest size** -> bấm **Lighten** trên dòng nặng nhất -> giữ tích **Purge heavy sidecars** và **Truncate large tool outputs** (chọn **Keep all turns** nếu muốn giữ nguyên 100% tin nhắn) -> bấm **Lighten Now**.
-4. **Chỉ xóa bản sao ở một bên hay xóa sạch ở mọi nơi:**
-   - **Chỉ xóa 1 bên:** Bấm thẻ **Provider** trên dòng -> bỏ tích đúng provider muốn gỡ -> bấm **Apply**.
-   - **Xóa sạch ở mọi provider:** Bấm thẻ **Provider** -> bấm **Untick all** -> bấm **Apply (Delete)** và xác nhận trong hộp thoại.
+1. **Switch coding agent mid-task (quota hit or second opinion):**
+   - Open the `mcas` Web UI, find your active session, and click its **Provider** tag (or **Preview → Copy →** after selecting the target provider).
+   - Inside **Preview**, click **Copy** next to *Resume Dir* and **Copy cmd** next to *Resume Cmd*, then paste into your terminal to continue seamlessly (`claude --resume`, `agy --conversation`, or `codex resume`).
+2. **Automatically sync only selected repositories in the background:**
+   - Switch to **Advanced** mode and open **Auto-Sync & Activity** → enable **Enable automatic background sync** → choose **Bidirectional (all)** or a specific pair/1-way direction → set **Workspace Scope** to **Selected folders only** → check your target repositories → click **Save Settings**.
+   - The ledger in `sync_state.json` tracks `(mtime_ns, turn_count)` per side so syncs only fire on new updates and never echo-loop.
+3. **Slim down a multi-megabyte session bloated by images or subagents:**
+   - Choose **Sort: Largest size** → click **Lighten** on the heaviest row → choose **Keep all turns** if you want 100% of conversation turns preserved (Basic mode automatically purges heavy sidecars, truncates large tool outputs, and strips thinking blocks; customize in **Advanced** if needed) → click **Lighten Now**.
+4. **Remove a copy from just one provider vs delete everywhere:**
+   - **Single provider:** Click the row's **Provider** tag → uncheck only the provider you want to remove → click **Apply**.
+   - **Everywhere:** Click the row's **Provider** tag → click **Untick all** → click **Apply (Delete)** and confirm.

@@ -62,6 +62,16 @@ class ClaudeProvider(AgentProvider):
     def resume_command(self, session_id: str) -> str:
         return f"claude --resume {session_id}"
 
+    def get_session_size(
+        self,
+        session_id: str,
+        location: Path,
+        summary: SessionSummary | None = None,
+        *,
+        include_children: bool = True,
+    ) -> tuple[int, int, int]:
+        return get_claude_session_size(session_id, jsonl_path=location)
+
     def get_sync_fingerprint(self, summary: SessionSummary) -> tuple[int, int]:
         try:
             mtime_ns = summary.location.stat().st_mtime_ns

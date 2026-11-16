@@ -24,9 +24,7 @@ from mcas.providers import get_provider
 from mcas.providers.agy.storage import (
     _agy_base_dir_for,
     _find_agy_descendants,
-    get_agy_session_size,
 )
-from mcas.providers.claude.storage import get_claude_session_size
 from mcas.sync.state import (
     _SYNC_LOCK,
     _append_history,
@@ -88,14 +86,10 @@ def trim_session(
     real_id = session.session_id
     app_dir = "antigravity" if (summary and "antigravity" in summary.extra.split(",")) else "antigravity-cli"
 
-    child_ids: list[str] = []
-    if prov.id == "agy":
-        child_ids = _find_agy_descendants(real_id)
-        before_bytes, _, _ = get_agy_session_size(
-            real_id, db_path=loc, child_ids=child_ids if purge_sidecars else None, app_data_dir=app_dir
-        )
-    else:
-        before_bytes, _, _ = get_claude_session_size(real_id, jsonl_path=loc)
+    child_ids: list[str] = _find_agy_descendants(real_id) if prov.id == "agy" else []
+    before_bytes, _, _ = prov.get_session_size(
+        real_id, loc, summary=summary, include_children=purge_sidecars
+    )
 
     orig_turns = list(session.turns)
     turns_before = len(orig_turns)
@@ -221,7 +215,7 @@ def trim_session(
                     con.commit()
                 finally:
                     con.close()
-        else:
+        elif prov.id == "claude":
             fh_dir = get_claude_dir() / "file-history" / real_id
             if fh_dir.is_dir():
                 shutil.rmtree(fh_dir, ignore_errors=True)
@@ -260,10 +254,9 @@ def trim_session(
     new_hash = canonical_session_hash(re_read)
     _update_pair_after_trim(prov.id, real_id, new_fp, new_hash, re_read.title)
 
-    if prov.id == "agy":
-        after_bytes, _, _ = get_agy_session_size(real_id, db_path=out_path, app_data_dir=app_dir)
-    else:
-        after_bytes, _, _ = get_claude_session_size(real_id, jsonl_path=out_path)
+    after_bytes, _, _ = prov.get_session_size(
+        real_id, out_path, summary=summary, include_children=False
+    )
     freed_bytes = max(0, before_bytes - after_bytes)
 
     with _SYNC_LOCK:

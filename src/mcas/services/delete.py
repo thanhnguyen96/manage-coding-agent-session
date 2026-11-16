@@ -82,7 +82,7 @@ def delete_sessions_batch(
             try:
                 prov = get_provider(src, require_supported=True)
                 loc, summary = prov.find_session(sid)
-                resolved_id = summary.session_id if summary else loc.stem
+                resolved_id = summary.session_id if summary else prov.session_id_from_location(loc)
                 for peer_src, peer_id in _resolve_synced_peers(prov.id, resolved_id):
                     expanded.append((peer_src, peer_id, True))
             except SyncError:
@@ -98,7 +98,7 @@ def delete_sessions_batch(
         try:
             prov = get_provider(src, require_supported=True)
             loc, summary = prov.find_session(sid)
-            resolved_id = summary.session_id if summary else loc.stem
+            resolved_id = summary.session_id if summary else prov.session_id_from_location(loc)
             title = summary.title if summary else resolved_id
             cwd_val = summary.cwd if summary else ""
         except SyncError as exc:

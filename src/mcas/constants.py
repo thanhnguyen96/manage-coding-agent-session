@@ -4,7 +4,7 @@ import re
 
 APP_NAME = "mcas"
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 DEFAULT_PORT = 47831
 

@@ -16,6 +16,7 @@ from mcas.config import (
     get_agy_ide_dir,
     get_claude_dir,
     get_claude_projects_dir,
+    get_codex_dir,
 )
 from mcas.models import SessionSummary
 from mcas.providers import _collect_sessions_by_provider, get_provider
@@ -140,6 +141,7 @@ def get_storage_summary(
 ) -> dict[str, Any]:
     cli_dir = get_agy_cli_dir()
     claude_dir = get_claude_dir()
+    codex_dir = get_codex_dir()
 
     sum_db = cli_dir / "conversation_summaries.db"
     agy_bytes = (
@@ -155,7 +157,16 @@ def get_storage_summary(
         _fast_dir_size(claude_dir / "projects")
         + _fast_dir_size(claude_dir / "file-history")
     )
-    total_bytes = agy_bytes + claude_bytes
+    codex_state_db = codex_dir / "state_5.sqlite"
+    codex_bytes = (
+        _fast_dir_size(codex_dir / "sessions")
+        + _fast_dir_size(codex_dir / "archived_sessions")
+        + _fast_file_size(codex_dir / "session_index.jsonl")
+        + _fast_file_size(codex_state_db)
+        + _fast_file_size(Path(str(codex_state_db) + "-wal"))
+        + _fast_file_size(Path(str(codex_state_db) + "-shm"))
+    )
+    total_bytes = agy_bytes + claude_bytes + codex_bytes
 
     orphans = _scan_storage_orphans("all")
     empty_count = 0
@@ -175,12 +186,20 @@ def get_storage_summary(
             sub_dir = s.location.with_suffix("") / "subagents"
             if sub_dir.is_dir():
                 subagent_count += 1
+        for s in by_prov_all.get("codex", []):
+            extras = [x.strip() for x in s.extra.split(",") if x.strip()]
+            if s.step_or_msg_count == 0:
+                empty_count += 1
+            if any(x.startswith("depth=") and x != "depth=0" for x in extras):
+                subagent_count += 1
 
     return {
         "agyBytes": agy_bytes,
         "agyHuman": format_bytes(agy_bytes),
         "claudeBytes": claude_bytes,
         "claudeHuman": format_bytes(claude_bytes),
+        "codexBytes": codex_bytes,
+        "codexHuman": format_bytes(codex_bytes),
         "totalBytes": total_bytes,
         "totalHuman": format_bytes(total_bytes),
         "orphanBytes": orphans["orphanBytes"],

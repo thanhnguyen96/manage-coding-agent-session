@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { isAdvanced, state } from './state.js';
 import { api } from './api.js';
 import { $, el, renderMessageText } from './utils/dom.js';
 import {
@@ -6,8 +6,10 @@ import {
   formatExtra,
   formatLocalDate,
   formatResumeCmd,
-  oppositeProvider,
   orderedProvidersList,
+  otherProviders,
+  providerBadgeClass,
+  providerLabel,
 } from './utils/format.js';
 import { copyText } from './components/toast.js';
 import { confirmDeleteGroup, copySingleSession } from './actions.js';
@@ -73,7 +75,7 @@ export function renderDrawerContent(data) {
 
   const badge = $('drawerBadge');
   badge.textContent = data.source || 'session';
-  badge.className = 'pbadge ' + (data.source === 'agy' ? 'agy' : data.source === 'claude' ? 'claude' : 'other');
+  badge.className = 'pbadge ' + providerBadgeClass(data.source);
   $('drawerTitle').textContent = data.title || t('row.untitled');
 
   const tabsHost = $('drawerProvTabs');
@@ -104,8 +106,8 @@ export function renderDrawerContent(data) {
     ? t('drawer.sizeDetail', { total: data.sizeHuman, main: data.mainHuman || '0 B', sidecar: data.sidecarHuman || '0 B' })
     : '0 B';
   meta.replaceChildren(
-    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.idLbl') }), el('code', { textContent: data.id || '' })),
-    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.folderLbl') }), el('code', { textContent: data.cwd || t('drawer.none') })),
+    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.idLbl') }), el('code', { textContent: data.id || '', title: data.id || '' })),
+    el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.folderLbl') }), el('code', { textContent: data.cwd || t('drawer.none'), title: data.cwd || '' })),
     el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.updatedLbl') }), el('span', { textContent: data.updatedLocal || formatLocalDate(data.updatedAt) || '-' })),
     el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.turnsLbl') }), el('span', { textContent: String((data.turns || []).length) })),
     el('div', {}, el('span', { className: 'brand-sub', textContent: t('drawer.sizeLbl') }), el('span', { textContent: sizeDetail }))
@@ -120,14 +122,24 @@ export function renderDrawerContent(data) {
   const rDir = data.resumeDir || data.cwd || '';
   $('drawerDirBox').hidden = !rDir;
   $('drawerDirText').textContent = rDir ? `cd "${rDir}"` : '';
+  $('drawerDirText').title = rDir ? `cd "${rDir}"` : '';
 
   const rCmd = data.resumeCmd || formatResumeCmd(data.source, data.id);
   $('drawerCmdBox').hidden = !rCmd;
   $('drawerCmdText').textContent = rCmd;
+  $('drawerCmdText').title = rCmd;
 
-  const target = oppositeProvider(data.source);
-  $('drawerCopyBtn').textContent = target === 'claude' ? t('drawer.copyToClaude') : t('drawer.copyToAgy');
-  $('drawerCopyBtn').onclick = () => copySingleSession(data.source, data.id, target, $('drawerThinking').checked);
+  const targets = otherProviders(data.source, state.status && state.status.providers);
+  const targetSel = $('drawerCopyTarget');
+  targetSel.replaceChildren();
+  for (const tid of targets) {
+    targetSel.append(el('option', { value: tid, textContent: `${providerLabel(tid)} (${tid})` }));
+  }
+  const missingTarget = targets.find((tid) => !(matchedGroup.members && matchedGroup.members[tid]));
+  targetSel.value = missingTarget || targets[0] || '';
+  $('drawerCopyBtn').textContent = t('drawer.copyToBtn');
+  $('drawerCopyBtn').disabled = targets.length === 0;
+  $('drawerCopyBtn').onclick = () => copySingleSession(data.source, data.id, targetSel.value, isAdvanced() && $('drawerThinking').checked);
   $('drawerTrimBtn').onclick = () => openTrimModal(matchedGroup);
   $('drawerDeleteBtn').onclick = () => confirmDeleteGroup(matchedGroup);
 

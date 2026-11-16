@@ -54,6 +54,18 @@ def get_claude_dir() -> Path:
 def get_claude_projects_dir() -> Path:
     return get_claude_dir() / "projects"
 
+def get_codex_dir() -> Path:
+    override = os.environ.get("MCAS_CODEX_DIR", "").strip()
+    if override:
+        return Path(override)
+    return _user_home() / ".codex"
+
+def get_codex_sessions_dir() -> Path:
+    return get_codex_dir() / "sessions"
+
+def get_codex_archived_dir() -> Path:
+    return get_codex_dir() / "archived_sessions"
+
 def get_startup_lnk_path() -> Path:
     appdata = os.environ.get("APPDATA", "").strip()
     base = Path(appdata) if appdata else (_user_home() / "AppData" / "Roaming")

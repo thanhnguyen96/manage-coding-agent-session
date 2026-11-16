@@ -102,6 +102,24 @@ class AgyProvider(AgentProvider):
     def resume_command(self, session_id: str) -> str:
         return f"agy --conversation {session_id}"
 
+    def get_session_size(
+        self,
+        session_id: str,
+        location: Path,
+        summary: SessionSummary | None = None,
+        *,
+        include_children: bool = True,
+    ) -> tuple[int, int, int]:
+        app_dir = (
+            "antigravity"
+            if (summary and "antigravity" in summary.extra.split(","))
+            else "antigravity-cli"
+        )
+        child_ids = _find_agy_descendants(session_id) if include_children else None
+        return get_agy_session_size(
+            session_id, db_path=location, child_ids=child_ids, app_data_dir=app_dir
+        )
+
     def get_sync_fingerprint(self, summary: SessionSummary) -> tuple[int, int]:
         db_path = summary.location
         max_mtime = 0

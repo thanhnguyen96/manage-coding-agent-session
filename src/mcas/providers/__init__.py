@@ -8,12 +8,13 @@ from mcas.providers.base import (
     FutureProvider,
 )
 from mcas.providers.claude.provider import ClaudeProvider
+from mcas.providers.codex.provider import CodexProvider
 
 PROVIDERS: dict[str, AgentProvider] = {
     "agy": AgyProvider(),
     "claude": ClaudeProvider(),
+    "codex": CodexProvider(),
     "opencode": FutureProvider("opencode", "OpenCode", badge="Soon"),
-    "codex": FutureProvider("codex", "Codex", badge="Soon"),
 }
 
 def get_supported_providers() -> list[AgentProvider]:

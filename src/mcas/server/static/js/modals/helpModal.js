@@ -49,10 +49,10 @@ const GUIDE_DATA = {
           },
           {
             n: 3,
-            name: { en: 'Start with Windows (#autostartWrap)', vi: 'Khởi động cùng Windows (#autostartWrap)' },
+            name: { en: 'Start with Windows (in Settings #settingsBtn)', vi: 'Khởi động cùng Windows (trong Cài đặt #settingsBtn)' },
             desc: {
-              en: 'Adds or removes the Windows Startup shortcut for the mcas tray icon.',
-              vi: 'Bật/tắt shortcut khởi động khay hệ thống mcas cùng Windows.',
+              en: 'Adds or removes the Windows Startup shortcut for the mcas tray icon inside the Settings gear menu.',
+              vi: 'Bật/tắt shortcut khởi động khay hệ thống mcas cùng Windows trong menu Cài đặt.',
             },
             when: {
               en: 'Enable if you want background Auto-Sync running automatically after sign-in.',
@@ -73,10 +73,10 @@ const GUIDE_DATA = {
           },
           {
             n: 5,
-            name: { en: 'Stop server (#quitBtn)', vi: 'Dừng máy chủ (#quitBtn)' },
+            name: { en: 'Stop server (in Settings #settingsBtn)', vi: 'Dừng máy chủ (trong Cài đặt #settingsBtn)' },
             desc: {
-              en: 'Stops the local mcas web server, Auto-Sync loop, and tray icon.',
-              vi: 'Tắt máy chủ web cục bộ, vòng lặp Auto-Sync và biểu tượng khay.',
+              en: 'Stops the local mcas web server, Auto-Sync loop, and tray icon (tucked inside Settings to prevent accidental clicks).',
+              vi: 'Tắt máy chủ web cục bộ, vòng lặp Auto-Sync và biểu tượng khay (nằm trong menu Cài đặt để tránh bấm nhầm).',
             },
             when: {
               en: 'Use before upgrading mcas or when shutting down background services.',
@@ -136,8 +136,8 @@ const GUIDE_DATA = {
             n: 1,
             name: { en: 'Provider filter (#providerPills)', vi: 'Bộ lọc Provider (#providerPills)' },
             desc: {
-              en: 'Segmented switch for All, Antigravity, or Claude Code.',
-              vi: 'Lọc danh sách theo Tất cả, Antigravity hoặc Claude Code.',
+              en: 'Segmented switch for All, Antigravity, Claude Code, or Codex.',
+              vi: 'Lọc danh sách theo Tất cả, Antigravity, Claude Code hoặc Codex.',
             },
             when: {
               en: 'Isolate sessions belonging to one provider.',
@@ -170,6 +170,7 @@ const GUIDE_DATA = {
           },
           {
             n: 4,
+            adv: true,
             name: { en: 'Include subagents / IDE / empty (#includeAll)', vi: 'Gồm subagent / IDE / trống (#includeAll)' },
             desc: {
               en: 'Reveals hidden subagent logs, IDE chats, and 0-turn empty sessions.',
@@ -208,20 +209,20 @@ const GUIDE_DATA = {
             n: 7,
             name: { en: 'Sync folder (#openSyncDirBtn)', vi: 'Đồng bộ thư mục (#openSyncDirBtn)' },
             desc: {
-              en: 'Bulk-copies all top-level sessions in a folder from one agent to another.',
-              vi: 'Sao chép hàng loạt toàn bộ phiên cấp cao nhất của một thư mục sang agent kia.',
+              en: 'Bulk-copies all top-level sessions in a folder from one agent to another (in Basic mode, appears when a workspace folder filter is active).',
+              vi: 'Sao chép hàng loạt toàn bộ phiên cấp cao nhất của một thư mục sang agent khác (ở chế độ Cơ bản, nút hiện khi đang lọc một thư mục dự án).',
             },
             when: {
-              en: 'Migrate an entire project workspace from agy to claude (or back).',
-              vi: 'Khi chuyển cả dự án từ Antigravity sang Claude Code (hoặc ngược lại).',
+              en: 'Migrate an entire project workspace between agy, claude, and codex.',
+              vi: 'Khi chuyển cả dự án giữa Antigravity, Claude Code và Codex.',
             },
           },
           {
             n: 8,
             name: { en: 'Provider tag (.prov-tag-btn)', vi: 'Thẻ Provider (.prov-tag-btn)' },
             desc: {
-              en: 'Shows where this chat lives, e.g. (claude, agy), and opens the sync menu.',
-              vi: 'Hiển thị phiên đang có ở đâu, VD: (claude, agy), và mở menu quản lý sync.',
+              en: 'Shows where this chat lives, e.g. (claude, agy, codex), and opens the sync menu.',
+              vi: 'Hiển thị phiên đang có ở đâu, VD: (claude, agy, codex), và mở menu quản lý sync.',
             },
             when: {
               en: 'Click to copy a chat to another provider or remove one side.',
@@ -283,6 +284,7 @@ const GUIDE_DATA = {
           },
           {
             n: 3,
+            adv: true,
             name: { en: 'Include <thought> option', vi: 'Tùy chọn Kèm <thought>' },
             desc: {
               en: 'Appears when adding a provider; includes internal reasoning blocks.',
@@ -338,12 +340,12 @@ const GUIDE_DATA = {
             n: 1,
             name: { en: 'Provider tabs (#drawerProvTabs)', vi: 'Tab Provider (#drawerProvTabs)' },
             desc: {
-              en: 'Switches between synced copies (e.g. claude vs agy) inside the same drawer.',
-              vi: 'Chuyển qua lại giữa các bản đã đồng bộ (VD: claude và agy).',
+              en: 'Switches between synced copies (e.g. claude, agy, codex) inside the same drawer.',
+              vi: 'Chuyển qua lại giữa các bản đã đồng bộ (VD: claude, agy, codex).',
             },
             when: {
-              en: 'Compare size or verify turns across both providers.',
-              vi: 'Dùng khi muốn so sánh dung lượng hoặc kiểm tra nội dung ở hai bên.',
+              en: 'Compare size or verify turns across synced providers.',
+              vi: 'Dùng khi muốn so sánh dung lượng hoặc kiểm tra nội dung ở các bên.',
             },
           },
           {
@@ -374,8 +376,8 @@ const GUIDE_DATA = {
             n: 4,
             name: { en: 'Copy Resume Cmd (#drawerCopyCmd)', vi: 'Chép lệnh Resume (#drawerCopyCmd)' },
             desc: {
-              en: 'Copies `claude --resume <id>` or `agy --conversation <id>`.',
-              vi: 'Sao chép lệnh `claude --resume <id>` hoặc `agy --conversation <id>`.',
+              en: 'Copies `claude --resume <id>`, `agy --conversation <id>`, or `codex resume <id>`.',
+              vi: 'Sao chép lệnh `claude --resume <id>`, `agy --conversation <id>` hoặc `codex resume <id>`.',
             },
             when: {
               en: 'Continue this exact session in your terminal CLI immediately.',
@@ -384,13 +386,13 @@ const GUIDE_DATA = {
           },
           {
             n: 5,
-            name: { en: 'Copy to opposite provider (#drawerCopyBtn)', vi: 'Chép sang provider kia (#drawerCopyBtn)' },
+            name: { en: 'Copy to target provider (#drawerCopyBtn, #drawerCopyTarget)', vi: 'Chép sang provider đích (#drawerCopyBtn, #drawerCopyTarget)' },
             desc: {
-              en: 'One-click copy to Claude/AGY, respecting the Include <thought> checkbox.',
-              vi: 'Chép nhanh sang Claude/AGY, kèm tùy chọn Kèm <thought>.',
+              en: 'Pick a target agent and copy in one click, respecting the Include <thought> checkbox.',
+              vi: 'Chọn agent đích và chép nhanh chỉ với 1 bấm, kèm tùy chọn Kèm <thought>.',
             },
             when: {
-              en: 'Hand off an active conversation to the other coding agent.',
+              en: 'Hand off an active conversation to another coding agent.',
               vi: 'Khi muốn chuyển tiếp cuộc trò chuyện sang agent khác để làm tiếp.',
             },
           },
@@ -445,6 +447,7 @@ const GUIDE_DATA = {
           },
           {
             n: 2,
+            adv: true,
             name: { en: 'Purge heavy sidecars (#tmPurgeSidecars)', vi: 'Xóa file phụ nặng (#tmPurgeSidecars)' },
             desc: {
               en: 'Removes brain images/logs, subagent files, and file-history backups.',
@@ -457,6 +460,7 @@ const GUIDE_DATA = {
           },
           {
             n: 3,
+            adv: true,
             name: { en: 'Truncate tools & Strip thinking', vi: 'Cắt output tool & Xóa <thought>' },
             desc: {
               en: 'Caps tool outputs >2,000 chars (#tmTruncateTools) and removes <thought> (#tmStripThinking).',
@@ -500,8 +504,8 @@ const GUIDE_DATA = {
             n: 1,
             name: { en: 'Storage breakdown (#clStorageGrid)', vi: 'Bảng thống kê dung lượng (#clStorageGrid)' },
             desc: {
-              en: 'Shows total storage, agy vs claude usage, and orphan/empty/subagent counts.',
-              vi: 'Hiển thị tổng dung lượng, mức dùng của agy/claude và số mục mồ côi/trống/subagent.',
+              en: 'Shows total storage, agy / claude / codex usage, and orphan/empty/subagent counts.',
+              vi: 'Hiển thị tổng dung lượng, mức dùng của agy/claude/codex và số mục mồ côi/trống/subagent.',
             },
             when: {
               en: 'Check at a glance how much reclaimable junk exists.',
@@ -534,6 +538,7 @@ const GUIDE_DATA = {
           },
           {
             n: 4,
+            adv: true,
             name: { en: 'Age / Size filters & Scope', vi: 'Ngưỡng Ngày / MB & Phạm vi' },
             desc: {
               en: 'Optional thresholds (#clOlderDays, #clLargerMb) and workspace scope (#clScope).',
@@ -593,24 +598,25 @@ const GUIDE_DATA = {
               vi: 'Bật hoặc tắt tiến trình tự động đồng bộ định kỳ ở nền.',
             },
             when: {
-              en: 'Enable when switching frequently between Antigravity and Claude Code.',
-              vi: 'Bật khi bạn thường xuyên chuyển qua lại giữa Antigravity và Claude Code.',
+              en: 'Enable when switching frequently between Antigravity, Claude Code, and Codex.',
+              vi: 'Bật khi bạn thường xuyên chuyển qua lại giữa Antigravity, Claude Code và Codex.',
             },
           },
           {
             n: 2,
             name: { en: 'Direction & Interval (#asDirection, #asInterval)', vi: 'Chiều đồng bộ & Chu kỳ' },
             desc: {
-              en: 'Pick Bidirectional (loop-free) or one-way, plus polling interval (10s-300s).',
-              vi: 'Chọn Hai chiều (chống lặp ngược) hoặc một chiều, cùng chu kỳ kiểm tra (10-300 giây).',
+              en: 'Pick Bidirectional (all 3 or a pair, loop-free) or one-way, plus polling interval (10s-300s, shown in Advanced mode).',
+              vi: 'Chọn Hai chiều (cả 3 hoặc từng cặp, chống lặp ngược) hoặc một chiều, cùng chu kỳ kiểm tra (10-300 giây, hiện trong chế độ Nâng cao).',
             },
             when: {
               en: 'Use Bidirectional + 30s for seamless live handoff between agents.',
-              vi: 'Nên dùng Hai chiều + 30s để đồng bộ mượt mà giữa hai công cụ.',
+              vi: 'Nên dùng Hai chiều + 30s để đồng bộ mượt mà giữa các công cụ.',
             },
           },
           {
             n: 3,
+            adv: true,
             name: { en: 'Workspace Scope & Watched Folders (#asScope, #watchedBox)', vi: 'Phạm vi & Thư mục theo dõi' },
             desc: {
               en: 'Sync all workspaces or restrict Auto-Sync to checked folders.',
@@ -623,6 +629,7 @@ const GUIDE_DATA = {
           },
           {
             n: 4,
+            adv: true,
             name: { en: 'Include thinking (#asIncludeThinking)', vi: 'Kèm <thought> (#asIncludeThinking)' },
             desc: {
               en: 'Includes internal <thought> reasoning blocks when Auto-Sync copies sessions.',
@@ -667,8 +674,8 @@ const GUIDE_DATA = {
           vi: '1. Đổi coding agent ngay giữa tác vụ',
         },
         body: {
-          en: 'Hit quota or want a second opinion? Click the row\'s Provider tag (or Preview -> Copy -> Claude/AGY), then copy `cd` + `claude --resume <id>` / `agy --conversation <id>` to continue with full context.',
-          vi: 'Hết quota hoặc muốn nhờ model khác xử lý tiếp? Bấm thẻ Provider trên dòng (hoặc Xem trước -> Chép), rồi sao chép `cd` + `claude --resume <id>` / `agy --conversation <id>` để chạy tiếp ngay.',
+          en: 'Hit quota or want a second opinion? Click the row\'s Provider tag (or Preview -> select target -> Copy ->), then copy `cd` + `claude --resume <id>` / `agy --conversation <id>` / `codex resume <id>` to continue with full context.',
+          vi: 'Hết quota hoặc muốn nhờ model khác xử lý tiếp? Bấm thẻ Provider trên dòng (hoặc Xem trước -> chọn đích -> Chép ->), rồi sao chép `cd` + `claude --resume <id>` / `agy --conversation <id>` / `codex resume <id>` để chạy tiếp ngay.',
         },
       },
       {
@@ -677,7 +684,7 @@ const GUIDE_DATA = {
           vi: '2. Tự động đồng bộ theo thư mục dự án',
         },
         body: {
-          en: 'In Auto-Sync & Activity, set Scope = "Selected folders only", tick your active repo(s), pick Bidirectional (agy <-> claude), and click Save Settings. New turns sync without echo loops.',
+          en: 'In Auto-Sync & Activity, set Scope = "Selected folders only", tick your active repo(s), pick Bidirectional (all or a pair), and click Save Settings. New turns sync without echo loops.',
           vi: 'Trong tab Auto-Sync, chọn Phạm vi = "Chỉ các thư mục đã chọn", tích các dự án đang làm, chọn Hai chiều và Lưu cài đặt. Các lượt chat mới sẽ tự đồng bộ mà không bị lặp ngược.',
         },
       },
@@ -748,6 +755,7 @@ function buildShotCard(sec, lang) {
       el('div', { className: 'help-legend-text' },
         el('div', { className: 'help-legend-head' },
           el('strong', { textContent: pick(pin.name, lang) }),
+          pin.adv ? el('span', { className: 'help-adv-badge', textContent: t('help.advBadge') }) : null,
           el('span', { className: 'help-legend-desc', textContent: ' \u2014 ' + pick(pin.desc, lang) })
         ),
         el('div', { className: 'help-legend-when' },
@@ -794,6 +802,12 @@ export function renderHelpModal() {
   body.replaceChildren();
 
   const spec = GUIDE_DATA[activeHelpTab] || GUIDE_DATA.overview;
+  if (activeHelpTab === 'overview') {
+    body.append(el('div', { className: 'help-mode-note' },
+      el('strong', { textContent: t('help.modeNoteTitle') + ' ' }),
+      el('span', { textContent: t('help.modeNoteBody') })
+    ));
+  }
   for (const sec of (spec.sections || [])) {
     body.append(buildShotCard(sec, lang));
   }

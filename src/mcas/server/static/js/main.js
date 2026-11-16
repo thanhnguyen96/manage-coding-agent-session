@@ -1,4 +1,4 @@
-import { state, storageGet } from './state.js';
+import { state, storageGet, storageSet } from './state.js';
 import { api } from './api.js';
 import { $, el } from './utils/dom.js';
 import { groupKey } from './utils/format.js';
@@ -6,7 +6,7 @@ import { withBusy } from './utils/busy.js';
 import { initTheme, toggleTheme, updateThemeButton } from './components/theme.js';
 import { toast } from './components/toast.js';
 import { askConfirm } from './components/confirmModal.js';
-import { renderStatus, switchTab } from './render/status.js';
+import { renderStatus, renderWorkspaceSelect, switchTab, updateSyncDirButton } from './render/status.js';
 import {
   clearCwdFilter,
   renderActiveFilters,
@@ -36,15 +36,49 @@ import {
   openHelpModal,
   renderHelpModal,
 } from './modals/helpModal.js';
-import { initAutosyncPanel } from './panels/autosync.js';
+import { initAutosyncPanel, renderAutosyncBasicSummary, syncAutosyncActionButtons } from './panels/autosync.js';
 import { initI18n, onLangChange, setLang, t } from './i18n.js';
 
-// Theme & i18n init
+function normalizeUiMode(mode) {
+  return mode === 'advanced' ? 'advanced' : 'basic';
+}
+
+function applyUiMode(mode, { persist = true, refreshUi = true } = {}) {
+  const next = normalizeUiMode(mode);
+  state.uiMode = next;
+  document.documentElement.dataset.uiMode = next;
+  if (persist) storageSet('mcas.uiMode', next);
+  if (next === 'basic' && state.cwdCustomMode) {
+    state.cwdCustomMode = false;
+    $('cwdCustomWrap').hidden = true;
+  }
+  document.querySelectorAll('#uiModeSwitch button[data-ui-mode]').forEach((btn) => {
+    const active = btn.getAttribute('data-ui-mode') === next;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  });
+  if (refreshUi) {
+    updateSyncDirButton();
+    renderWorkspaceSelect(state.status ? state.status.workspaces : []);
+    renderActiveFilters();
+    renderAutosyncBasicSummary();
+  }
+}
+
+// Theme, UI mode & i18n init
 initTheme();
 initI18n();
 updateThemeButton();
+applyUiMode(storageGet('mcas.uiMode', 'basic'), { persist: false, refreshUi: false });
 
-// Language dropdown
+// Settings & Language dropdowns
+const closeSettingsMenu = () => {
+  const menu = $('settingsMenu');
+  const btn = $('settingsBtn');
+  if (menu) menu.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+};
+
 const closeLangMenu = () => {
   const menu = $('langMenu');
   const btn = $('langBtn');
@@ -52,10 +86,21 @@ const closeLangMenu = () => {
   if (btn) btn.setAttribute('aria-expanded', 'false');
 };
 
+$('settingsBtn').onclick = (e) => {
+  e.stopPropagation();
+  const menu = $('settingsMenu');
+  const willOpen = menu.hidden;
+  closeLangMenu();
+  closeProviderDropdown(true);
+  menu.hidden = !willOpen;
+  $('settingsBtn').setAttribute('aria-expanded', String(willOpen));
+};
+
 $('langBtn').onclick = (e) => {
   e.stopPropagation();
   const menu = $('langMenu');
   const willOpen = menu.hidden;
+  closeSettingsMenu();
   closeProviderDropdown(true);
   menu.hidden = !willOpen;
   $('langBtn').setAttribute('aria-expanded', String(willOpen));
@@ -73,7 +118,7 @@ document.querySelectorAll('#langMenu .lang-opt').forEach((opt) => {
 onLangChange(() => {
   updateThemeButton();
   if (state.status) renderStatus(state.status);
-  else $('openSyncDirLabel').textContent = state.cwdFilter ? t('filter.syncThisFolder') : t('filter.syncFolder');
+  else updateSyncDirButton();
   renderSessions();
   if (!$('previewBackdrop').hidden && state.drawerSession) renderDrawerContent(state.drawerSession);
   if (!$('trimModal').hidden) renderTrimModalLabel();
@@ -83,6 +128,8 @@ onLangChange(() => {
     updateSyncDirHint();
   }
   if (!$('helpModal').hidden) renderHelpModal();
+  renderAutosyncBasicSummary();
+  syncAutosyncActionButtons();
 });
 
 // Topbar & navigation events
@@ -90,6 +137,10 @@ $('themeBtn').onclick = toggleTheme;
 $('tabBtnSessions').onclick = () => switchTab('sessions');
 $('tabBtnAutosync').onclick = () => switchTab('autosync');
 $('autosyncPill').onclick = () => switchTab('autosync');
+document.querySelectorAll('#uiModeSwitch button[data-ui-mode]').forEach((btn) => {
+  btn.onclick = () => applyUiMode(btn.getAttribute('data-ui-mode'));
+});
+if ($('asEditAdvBtn')) $('asEditAdvBtn').onclick = () => applyUiMode('advanced');
 
 $('refreshBtn').onclick = () => refreshAll(true);
 $('reconnectBtn').onclick = () => refreshAll(true);
@@ -110,6 +161,7 @@ $('autostartToggle').onchange = async (e) => {
 };
 
 $('quitBtn').onclick = async () => {
+  closeSettingsMenu();
   const ok = await askConfirm(
     t('quit.title'),
     t('quit.msg'),
@@ -158,7 +210,7 @@ $('cwdCustomInput').oninput = (e) => {
     if (v === state.cwdFilter) return;
     state.cwdFilter = v;
     state.limit = 200;
-    $('openSyncDirLabel').textContent = state.cwdFilter ? t('filter.syncThisFolder') : t('filter.syncFolder');
+    updateSyncDirButton();
     renderActiveFilters();
     fetchSessions({ silent: false });
   }, 350);
@@ -216,6 +268,12 @@ $('clearSelBtn').onclick = () => {
   state.selected.clear();
   renderSessions();
 };
+$('bulkOptionsBtn').onclick = () => {
+  const wrap = $('bulkOptionsWrap');
+  const willShow = wrap.hidden;
+  wrap.hidden = !willShow;
+  $('bulkOptionsBtn').setAttribute('aria-expanded', String(willShow));
+};
 $('bulkCopyBtn').onclick = copySelectedSessions;
 $('bulkDeleteBtn').onclick = confirmDeleteSelected;
 
@@ -226,11 +284,16 @@ initSyncDirModal();
 initHelpModal();
 initDrawer();
 initAutosyncPanel();
+updateSyncDirButton();
 
 // Global click / keyboard dismissal
 document.addEventListener('click', (e) => {
   if (state.openDropdownKey && !e.target.closest('[data-dropdown-host="true"]')) {
     closeProviderDropdown(true);
+  }
+  const settingsMenu = $('settingsMenu');
+  if (settingsMenu && !settingsMenu.hidden && !e.target.closest('#settingsWrap')) {
+    closeSettingsMenu();
   }
   const langMenu = $('langMenu');
   if (langMenu && !langMenu.hidden && !e.target.closest('#langWrap')) {
@@ -245,12 +308,15 @@ document.addEventListener('keydown', (e) => {
     const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select' || !!(tgt && tgt.isContentEditable);
     if (!isTyping && $('confirmModal').hidden) {
       e.preventDefault();
+      closeSettingsMenu();
       closeLangMenu();
       openHelpModal();
       return;
     }
   }
   if (e.key === 'Escape') {
+    const settingsMenu = $('settingsMenu');
+    if (settingsMenu && !settingsMenu.hidden) { closeSettingsMenu(); return; }
     const langMenu = $('langMenu');
     if (langMenu && !langMenu.hidden) { closeLangMenu(); return; }
     if (!$('confirmModal').hidden) return;

@@ -33,19 +33,35 @@
         <span class="dot" id="autosyncDot"></span>
         <span id="autosyncPillText">Auto-Sync: --</span>
       </button>
-      <label class="check" id="autostartWrap" title="Launch mcas tray icon automatically on Windows sign-in" data-i18n-title="top.autostartTitle">
-        <input type="checkbox" id="autostartToggle">
-        <span data-i18n="top.autostart">Start with Windows</span>
-      </label>
       <button type="button" id="refreshBtn" title="Refresh status and sessions" data-i18n-title="top.refreshTitle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>
         </svg>
         <span data-i18n="top.refresh">Refresh</span>
       </button>
-      <button type="button" id="quitBtn" class="danger" title="Stop the mcas server and remove the tray icon" data-i18n="top.stopServer" data-i18n-title="top.stopServerTitle">Stop server</button>
 
       <div class="top-utils">
+        <div class="settings-dropdown" id="settingsWrap">
+          <button type="button" class="icon-btn" id="settingsBtn" aria-expanded="false" aria-haspopup="menu" title="App &amp; server settings" aria-label="App &amp; server settings" data-i18n-title="top.settingsTitle" data-i18n-aria="top.settingsTitle">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+          <div class="settings-menu" id="settingsMenu" role="menu" aria-label="App &amp; server settings" hidden>
+            <label class="settings-item check" id="autostartWrap" title="Launch mcas tray icon automatically on Windows sign-in" data-i18n-title="top.autostartTitle">
+              <input type="checkbox" id="autostartToggle">
+              <span data-i18n="top.autostart">Start with Windows</span>
+            </label>
+            <div class="settings-divider"></div>
+            <button type="button" id="quitBtn" class="settings-item danger-item" role="menuitem" title="Stop the mcas server and remove the tray icon" data-i18n-title="top.stopServerTitle">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+              </svg>
+              <span data-i18n="top.stopServer">Stop server</span>
+            </button>
+          </div>
+        </div>
+
         <button type="button" class="sm" id="helpBtn" title="Open Visual Guide &amp; FAQ (?)" data-i18n-title="top.helpTitle">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>
@@ -92,6 +108,10 @@
       <span data-i18n="tabs.autosync">Auto-Sync &amp; Activity</span>
       <span class="tab-badge" id="tabAutosyncBadge">OFF</span>
     </button>
+    <div class="seg mode-switch" id="uiModeSwitch" role="group" aria-label="Interface mode" data-i18n-aria="uiMode.aria">
+      <button type="button" class="active" data-ui-mode="basic" data-i18n="uiMode.basic" data-i18n-title="uiMode.basicTitle" title="Essential daily tools with safe defaults" aria-pressed="true">Basic</button>
+      <button type="button" data-ui-mode="advanced" data-i18n="uiMode.advanced" data-i18n-title="uiMode.advancedTitle" title="All filters, custom paths, overrides &amp; watched-folder options" aria-pressed="false">Advanced</button>
+    </div>
   </nav>
 
   <!-- TAB 1: Sessions & Copy/Sync -->
@@ -104,7 +124,7 @@
           <select id="cwdSelect" aria-label="Filter by workspace folder" data-i18n-aria="filter.folderAria">
             <option value="" data-i18n="filter.allFolders">All folders</option>
           </select>
-          <div class="custom-cwd" id="cwdCustomWrap" hidden>
+          <div class="custom-cwd adv-only" id="cwdCustomWrap" hidden>
             <input type="text" id="cwdCustomInput" placeholder="Enter folder path (e.g. C:\repo)" data-i18n-placeholder="filter.customFolderPh" autocomplete="off">
             <button type="button" class="sm" id="cwdCustomApply" data-i18n="filter.apply">Apply</button>
             <button type="button" class="sm ghost" id="cwdCustomClear" title="Clear custom folder" data-i18n="filter.clear" data-i18n-title="filter.clearCustomTitle">Clear</button>
@@ -121,7 +141,7 @@
       </div>
 
       <div class="filter-row">
-        <label class="check">
+        <label class="check adv-only">
           <input type="checkbox" id="includeAll">
           <span data-i18n="filter.includeAll">Include subagents / IDE / empty</span>
         </label>
@@ -148,23 +168,31 @@
     </div>
 
     <div class="card sel-bar" id="selectionBar" hidden>
-      <span class="sel-count" id="selCount">0 selected</span>
-      <button type="button" class="sm ghost" id="clearSelBtn" data-i18n="sel.clear">Clear</button>
-      <div class="sel-controls">
-        <label class="check">
-          <span data-i18n="sel.to">To</span>
-          <select id="bulkTarget" aria-label="Target provider for selected sessions" data-i18n-aria="sel.targetAria">
-            <option value="claude">Claude Code (claude)</option>
-            <option value="agy">Antigravity (agy)</option>
-          </select>
-        </label>
+      <div class="sel-main">
+        <span class="sel-count" id="selCount">0 selected</span>
+        <button type="button" class="sm ghost" id="clearSelBtn" data-i18n="sel.clear">Clear</button>
+        <div class="sel-controls">
+          <label class="check">
+            <span data-i18n="sel.to">To</span>
+            <select id="bulkTarget" aria-label="Target provider for selected sessions" data-i18n-aria="sel.targetAria">
+              <option value="claude">Claude Code (claude)</option>
+              <option value="agy">Antigravity (agy)</option>
+              <option value="codex">Codex (codex)</option>
+            </select>
+          </label>
+          <label class="check adv-only"><input type="checkbox" id="bulkThinking"><span data-i18n="sel.includeThought">Include &lt;thought&gt;</span></label>
+          <button type="button" class="sm ghost adv-only" id="bulkOptionsBtn" aria-expanded="false" aria-controls="bulkOptionsWrap" title="Folder override, UUID &amp; overwrite options" data-i18n-title="sel.optionsTitle">
+            <span data-i18n="sel.options">Options</span> <span aria-hidden="true">&#9662;</span>
+          </button>
+        </div>
+        <button type="button" class="primary" id="bulkCopyBtn" data-i18n="sel.copySelected">Copy Selected</button>
+        <button type="button" class="danger" id="bulkDeleteBtn" data-i18n="sel.deleteSelected">Delete Selected</button>
+      </div>
+      <div class="sel-options adv-only" id="bulkOptionsWrap" hidden>
         <input type="text" id="bulkTargetCwd" placeholder="Target folder override (blank = keep session folder)" data-i18n-placeholder="sel.targetCwdPh" autocomplete="off">
-        <label class="check"><input type="checkbox" id="bulkThinking"><span data-i18n="sel.includeThought">Include &lt;thought&gt;</span></label>
         <label class="check"><input type="checkbox" id="bulkNewId"><span data-i18n="sel.newId">Force new UUID</span></label>
         <label class="check"><input type="checkbox" id="bulkOverwrite"><span data-i18n="sel.overwrite">Overwrite</span></label>
       </div>
-      <button type="button" class="primary" id="bulkCopyBtn" data-i18n="sel.copySelected">Copy Selected</button>
-      <button type="button" class="danger" id="bulkDeleteBtn" data-i18n="sel.deleteSelected">Delete Selected</button>
     </div>
 
     <div class="card" style="margin-top:12px">
@@ -217,12 +245,19 @@
           <div class="field">
             <label class="lbl" for="asDirection" data-i18n="as.direction">Sync Direction</label>
             <select id="asDirection">
-              <option value="both" data-i18n="as.dirBoth">Bidirectional (agy &harr; claude)</option>
+              <option value="both" data-i18n="as.dirBoth">Bidirectional (all: agy &harr; claude &harr; codex)</option>
+              <option value="agy_claude" data-i18n="as.dirAgyClaude">Bidirectional (agy &harr; claude)</option>
+              <option value="agy_codex" data-i18n="as.dirAgyCodex">Bidirectional (agy &harr; codex)</option>
+              <option value="claude_codex" data-i18n="as.dirClaudeCodex">Bidirectional (claude &harr; codex)</option>
               <option value="agy2claude" data-i18n="as.dirAgy2Claude">Antigravity &rarr; Claude Code only</option>
               <option value="claude2agy" data-i18n="as.dirClaude2Agy">Claude Code &rarr; Antigravity only</option>
+              <option value="agy2codex" data-i18n="as.dirAgy2Codex">Antigravity &rarr; Codex only</option>
+              <option value="codex2agy" data-i18n="as.dirCodex2Agy">Codex &rarr; Antigravity only</option>
+              <option value="claude2codex" data-i18n="as.dirClaude2Codex">Claude Code &rarr; Codex only</option>
+              <option value="codex2claude" data-i18n="as.dirCodex2Claude">Codex &rarr; Claude Code only</option>
             </select>
           </div>
-          <div class="field">
+          <div class="field adv-only">
             <label class="lbl" for="asInterval" data-i18n="as.interval">Check Interval</label>
             <select id="asInterval">
               <option value="10">Every 10s</option>
@@ -232,14 +267,14 @@
               <option value="300">Every 300s</option>
             </select>
           </div>
-          <div class="field">
+          <div class="field adv-only">
             <label class="lbl" for="asScope" data-i18n="as.scope">Workspace Scope</label>
             <select id="asScope">
               <option value="all" data-i18n="as.scopeAll">All workspaces</option>
               <option value="watched" data-i18n="as.scopeWatched">Selected folders only</option>
             </select>
           </div>
-          <div class="field" style="justify-content:flex-end; padding-bottom:4px">
+          <div class="field adv-only" style="justify-content:flex-end; padding-bottom:4px">
             <label class="check">
               <input type="checkbox" id="asIncludeThinking">
               <span data-i18n="as.includeThinking">Include thinking (&lt;thought&gt;) in synced sessions</span>
@@ -247,7 +282,12 @@
           </div>
         </div>
 
-        <div class="watched-box" id="watchedBox">
+        <div class="as-basic-summary basic-only" id="asBasicSummary" hidden>
+          <span id="asBasicSummaryText"></span>
+          <button type="button" class="sm ghost" id="asEditAdvBtn" data-i18n="as.editInAdv">Edit in Advanced</button>
+        </div>
+
+        <div class="watched-box adv-only" id="watchedBox">
           <div class="watched-head">
             <strong style="font-size:13px" id="watchedTitle">Watched folders</strong>
             <div class="row-actions">
@@ -328,8 +368,15 @@
         <button type="button" class="sm primary" id="drawerCopyCmd" data-i18n="drawer.copyCmd">Copy cmd</button>
       </div>
       <div class="drawer-actions">
-        <button type="button" class="sm primary" id="drawerCopyBtn" data-i18n="drawer.copy">Copy</button>
-        <label class="check"><input type="checkbox" id="drawerThinking"><span data-i18n="drawer.includeThought">Include &lt;thought&gt;</span></label>
+        <div class="drawer-copy-wrap">
+          <button type="button" class="sm primary" id="drawerCopyBtn" data-i18n="drawer.copyToBtn">Copy &rarr;</button>
+          <select id="drawerCopyTarget" aria-label="Target provider to copy to" data-i18n-aria="drawer.copyTargetAria">
+            <option value="claude">Claude Code (claude)</option>
+            <option value="agy">Antigravity (agy)</option>
+            <option value="codex">Codex (codex)</option>
+          </select>
+        </div>
+        <label class="check adv-only"><input type="checkbox" id="drawerThinking"><span data-i18n="drawer.includeThought">Include &lt;thought&gt;</span></label>
         <button type="button" class="sm" id="drawerTrimBtn" data-i18n="drawer.trim">Lighten / Trim</button>
         <div class="spacer"></div>
         <button type="button" class="sm danger" id="drawerDeleteBtn" data-i18n="drawer.delete">Delete Completely</button>
@@ -359,14 +406,18 @@
           <select id="sdDirection">
             <option value="agy->claude" data-i18n="syncDir.dirAgyToClaude">Antigravity (agy) &rarr; Claude Code (claude)</option>
             <option value="claude->agy" data-i18n="syncDir.dirClaudeToAgy">Claude Code (claude) &rarr; Antigravity (agy)</option>
+            <option value="agy->codex" data-i18n="syncDir.dirAgyToCodex">Antigravity (agy) &rarr; Codex (codex)</option>
+            <option value="codex->agy" data-i18n="syncDir.dirCodexToAgy">Codex (codex) &rarr; Antigravity (agy)</option>
+            <option value="claude->codex" data-i18n="syncDir.dirClaudeToCodex">Claude Code (claude) &rarr; Codex (codex)</option>
+            <option value="codex->claude" data-i18n="syncDir.dirCodexToClaude">Codex (codex) &rarr; Claude Code (claude)</option>
           </select>
         </div>
         <div class="brand-sub" id="sdCountHint"></div>
-        <div class="field">
+        <div class="field adv-only">
           <label class="lbl" for="sdTargetCwd" data-i18n="syncDir.targetOverrideLabel">Target Folder Override (optional)</label>
           <input type="text" id="sdTargetCwd" placeholder="Blank = preserve source folder" data-i18n-placeholder="syncDir.targetOverridePh" autocomplete="off">
         </div>
-        <div class="filter-row" style="gap:16px">
+        <div class="filter-row adv-only" style="gap:16px">
           <label class="check"><input type="checkbox" id="sdThinking"><span data-i18n="syncDir.includeThought">Include &lt;thought&gt;</span></label>
           <label class="check"><input type="checkbox" id="sdOverwrite"><span data-i18n="syncDir.overwrite">Overwrite existing targets</span></label>
         </div>
@@ -415,13 +466,13 @@
             <option value="all" data-i18n="trim.presetAll">Keep all turns (only strip heavy logs &amp; sidecars)</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field adv-only">
           <label class="check"><input type="checkbox" id="tmPurgeSidecars" checked><span data-i18n="trim.purgeSidecars">Purge heavy sidecars (brain images/logs, subagent files, file-history)</span></label>
         </div>
-        <div class="field">
+        <div class="field adv-only">
           <label class="check"><input type="checkbox" id="tmTruncateTools" checked><span data-i18n="trim.truncateTools">Truncate large tool outputs (&gt; 2,000 chars)</span></label>
         </div>
-        <div class="field">
+        <div class="field adv-only">
           <label class="check"><input type="checkbox" id="tmStripThinking" checked><span data-i18n="trim.stripThinking">Strip internal thinking / reasoning blocks</span></label>
         </div>
       </div>
@@ -451,7 +502,7 @@
       <div class="field">
         <label class="check"><input type="checkbox" id="clSubagents"><span data-i18n="cleanup.subagents">Delete subagent logs &amp; Claude subagents/ folders</span></label>
       </div>
-      <div class="grid-2">
+      <div class="grid-2 adv-only">
         <div class="field">
           <label for="clOlderDays" data-i18n="cleanup.olderDays">Also delete sessions older than (days)</label>
           <input type="number" id="clOlderDays" min="1" placeholder="Optional (e.g. 30)" data-i18n-placeholder="cleanup.olderPh">
@@ -461,7 +512,7 @@
           <input type="number" id="clLargerMb" min="0.1" step="0.5" placeholder="Optional (e.g. 10)" data-i18n-placeholder="cleanup.largerPh">
         </div>
       </div>
-      <div class="field">
+      <div class="field adv-only">
         <label for="clScope" data-i18n="cleanup.scope">Scope</label>
         <select id="clScope">
           <option value="all" data-i18n="cleanup.scopeAll">All workspaces</option>
